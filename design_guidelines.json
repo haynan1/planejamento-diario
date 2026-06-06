@@ -1,0 +1,190 @@
+{
+  "project_name": "Rocket Forward",
+  "app_type": "React Native Expo Mobile App",
+  "theme": "Light and Dark Mode (Toggleable)",
+  "design_archetype": "Archetype 2 (Performance Pro) mixed with Archetype 5 (Luxury/Premium)",
+  "visual_concept": "Premium deep space exploration, upward momentum, focus, high contrast, and energetic progress.",
+  "colors": {
+    "dark_mode": {
+      "background": "#070B14",
+      "surface": "#121A2F",
+      "surface_elevated": "#1C2741",
+      "primary_brand": "#3B69FF",
+      "accent_brand": "#FF2A4D",
+      "text_primary": "#FFFFFF",
+      "text_secondary": "#8D9EBA",
+      "text_muted": "#5C6A87",
+      "border": "#212E4A",
+      "success": "#10B981",
+      "warning": "#F59E0B",
+      "info": "#3B82F6"
+    },
+    "light_mode": {
+      "background": "#F4F6F9",
+      "surface": "#FFFFFF",
+      "surface_elevated": "#F8FAFC",
+      "primary_brand": "#214FE0",
+      "accent_brand": "#E61A3A",
+      "text_primary": "#0A1121",
+      "text_secondary": "#475569",
+      "text_muted": "#94A3B8",
+      "border": "#E2E8F0",
+      "success": "#059669",
+      "warning": "#D97706",
+      "info": "#2563EB"
+    }
+  },
+  "typography": {
+    "fonts": {
+      "heading": "Outfit",
+      "body": "Manrope",
+      "mono": "Space Mono"
+    },
+    "scale": {
+      "h1": { "size": "32px", "weight": "800", "letter_spacing": "-0.03em" },
+      "h2": { "size": "24px", "weight": "700", "letter_spacing": "-0.02em" },
+      "h3": { "size": "20px", "weight": "600", "letter_spacing": "-0.01em" },
+      "body": { "size": "16px", "weight": "400", "line_height": "24px" },
+      "body_medium": { "size": "16px", "weight": "500", "line_height": "24px" },
+      "small": { "size": "14px", "weight": "500", "line_height": "20px" },
+      "tiny_label": { "size": "12px", "weight": "700", "letter_spacing": "0.05em", "text_transform": "uppercase" }
+    }
+  },
+  "spacing_and_layout": {
+    "screen_padding": "24px",
+    "element_gap_small": "8px",
+    "element_gap_medium": "16px",
+    "element_gap_large": "24px",
+    "element_gap_xl": "32px",
+    "border_radius": {
+      "card": "16px",
+      "button": "999px",
+      "chip": "999px",
+      "modal": "24px"
+    }
+  },
+  "iconography": {
+    "library": "Phosphor Icons (phosphor-react-native) or Lucide Icons (lucide-react-native)",
+    "style": "Duotone or Bold for active tabs, Regular/Light for inactive. Rocket motifs for main actions, target/bullseye for goals, trajectory arrows for progress."
+  },
+  "components_styling": {
+    "buttons": {
+      "primary": {
+        "background": "accent_brand (Red)",
+        "text_color": "#FFFFFF",
+        "border_radius": "999px",
+        "typography": "body_medium",
+        "padding": "16px 24px"
+      },
+      "secondary": {
+        "background": "surface_elevated",
+        "text_color": "text_primary",
+        "border": "1px solid border",
+        "border_radius": "999px",
+        "padding": "12px 20px"
+      }
+    },
+    "cards": {
+      "background": "surface",
+      "border": "1px solid border",
+      "border_radius": "16px",
+      "padding": "20px",
+      "shadow": "Subtle elevation shadow in Light mode. No shadow, just crisp border in Dark mode."
+    },
+    "chips": {
+      "background": "primary_brand at 10% opacity",
+      "text_color": "primary_brand",
+      "border_radius": "999px",
+      "padding": "6px 12px",
+      "typography": "tiny_label"
+    },
+    "progress_ring": {
+      "track_color": "border",
+      "progress_color": "accent_brand",
+      "thickness": "8px",
+      "cap": "round"
+    },
+    "bottom_tab_navigation": {
+      "background": "surface",
+      "border_top": "1px solid border",
+      "active_icon_color": "accent_brand (Red)",
+      "inactive_icon_color": "text_secondary",
+      "label_typography": "tiny_label",
+      "layout": "Fixed bottom bar. Optional: Floating island style with 24px side margins and 16px bottom margin, fully rounded."
+    },
+    "bottom_sheet_modal": {
+      "background": "surface",
+      "border_radius_top": "24px",
+      "drag_indicator": "border (small pill)"
+    }
+  },
+  "screens": {
+    "dashboard": {
+      "name": "Início",
+      "key_elements": [
+        "Greeting header: 'Olá, [Nome]' with Avatar.",
+        "Main highlight: Large circular progress ring showing daily goals completed vs pending.",
+        "Motivational phrase section: italic, muted typography.",
+        "Today's Goals List (Metas de Hoje): concise cards, quick complete action.",
+        "CTA: Prominent 'Criar nova meta' FAB (Floating Action Button) or large sticky bottom button."
+      ]
+    },
+    "goals_list": {
+      "name": "Metas",
+      "key_elements": [
+        "Horizontal scrollable chips for filters: Status (Pendente, Em andamento, Concluída), Priority (Alta, Média, Baixa), Categories.",
+        "Goal Cards: Title, Date, Priority badge, Category icon.",
+        "Interactions: Swipe left to delete/edit, swipe right to mark as complete (React Native Reanimated)."
+      ]
+    },
+    "goal_creation": {
+      "name": "Criar Meta",
+      "key_elements": [
+        "Modal/BottomSheet view.",
+        "Inputs: Title (large text input), Description (multiline).",
+        "Date & Time pickers.",
+        "Segmented control or chips for Priority.",
+        "Grid of clickable icons/chips for Category (Estudos, Trabalho, Saúde, Finanças, Espiritual, Pessoal, Família, Empreendedorismo, Outros).",
+        "Status selection (default Pendente)."
+      ]
+    },
+    "planning": {
+      "name": "Planejamento",
+      "key_elements": [
+        "Top segmented toggle: Hoje | Semana | Mês.",
+        "Grouped list view by Date or Category.",
+        "Timeline style connecting lines on the left."
+      ]
+    },
+    "history": {
+      "name": "Histórico",
+      "key_elements": [
+        "2x2 Grid of Stat Cards: Metas Concluídas, Dias Produtivos, Taxa de Conclusão, Melhor Sequência.",
+        "Bar chart or Line graph showing 'Evolução da Semana' (completed goals per day)."
+      ]
+    },
+    "profile": {
+      "name": "Perfil",
+      "key_elements": [
+        "Large centered Avatar and User Name.",
+        "Settings List: Theme Toggle (Light/Dark), Motivational Phrases Toggle, Clear Data.",
+        "Space-themed abstract background at the very top header of the profile."
+      ]
+    }
+  },
+  "testing_instructions": {
+    "data_testid": "All interactive elements (buttons, inputs, list items, toggles, tab items) MUST have a 'data-testid' attribute in kebab-case. Example: 'data-testid=\"create-goal-button\"', 'data-testid=\"goal-card-1\"', 'data-testid=\"theme-toggle\"'."
+  },
+  "image_urls": {
+    "profile_header_bg": {
+      "url": "https://images.unsplash.com/photo-1457364887197-9150188c107b?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NTZ8MHwxfHNlYXJjaHwxfHxyb2NrZXQlMjBsYXVuY2glMjBzcGFjZXxlbnwwfHx8fDE3ODA3NzA1NDh8MA&ixlib=rb-4.1.0&q=85",
+      "description": "Rocket launch light trail at dusk. Ideal for a motivational background in the Profile screen header or Onboarding.",
+      "category": "background"
+    },
+    "onboarding_rocket": {
+      "url": "https://images.unsplash.com/photo-1517976487492-5750f3195933?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NTZ8MHwxfHNlYXJjaHwyfHxyb2NrZXQlMjBsYXVuY2glMjBzcGFjZXxlbnwwfHx8fDE3ODA3NzA1NDh8MA&ixlib=rb-4.1.0&q=85",
+      "description": "Spacecraft taking off. Good for empty states or welcome screens.",
+      "category": "illustration"
+    }
+  }
+}
