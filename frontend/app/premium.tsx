@@ -18,7 +18,7 @@ import { useToast } from "@/src/components/Toast";
 const FEATURES = [
   { icon: "bell", title: "Notificações inteligentes", desc: "Lembretes no horário ideal e alertas de sequência" },
   { icon: "bar-chart-2", title: "Relatórios avançados", desc: "Evolução de 30 dias, gráficos por categoria e prioridade" },
-  { icon: "infinity", title: "Metas ilimitadas", desc: "Sem o limite de 5 metas ativas do plano gratuito" },
+  { icon: "repeat", title: "Metas ilimitadas", desc: "Sem o limite de 5 metas ativas do plano gratuito" },
   { icon: "award", title: "Temas exclusivos", desc: "Em breve: paletas premium para personalizar o app" },
   { icon: "cloud", title: "Backup em nuvem", desc: "Em breve: sincronize entre dispositivos com segurança" },
 ];

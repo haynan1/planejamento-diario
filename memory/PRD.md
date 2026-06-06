@@ -32,3 +32,10 @@ Aplicativo mobile (React Native + Expo) de produtividade pessoal em **português
 ## Notas
 - Frases motivacionais: lista fixa (10 frases), seleção determinística por dia.
 - Sem login na v1; estrutura preparada para expandir.
+
+## Iteração 2 — Gamificação + Premium (demo)
+- **Gamificação**: 12 conquistas em 5 grupos (Início, Conclusão, Sequência, Variedade, Dia). Avaliadas via `POST /api/achievements/check` e celebradas com modal animado após criar/concluir metas.
+- **Notificações locais**: `expo-notifications` agenda lembretes no horário da meta. Funciona em build nativo (no preview web é no-op por design).
+- **Plano Premium (modo demo)**: `Profile.is_premium` controla acesso. Tier gratuito limitado a 5 metas ativas (HTTP 402 com código `FREE_LIMIT_REACHED`); Premium libera notificações + relatórios + metas ilimitadas. Sem integração de pagamento na v1 — toggle no `/premium` valida UX.
+- **Relatórios avançados** (Premium): `GET /api/reports/monthly` — barras por categoria/prioridade + evolução de 30 dias.
+- **Novas telas modais**: `/conquistas`, `/premium`, `/relatorios`.
