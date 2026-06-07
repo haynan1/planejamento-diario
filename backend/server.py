@@ -261,8 +261,9 @@ async def get_profile():
 
 @api_router.put("/profile", response_model=Profile)
 async def update_profile(payload: ProfileUpdate):
-    update = {k: v for k, v in payload.model_dump().items() if v is not None}
-    await db.profile.update_one({"id": "default"}, {"$set": update}, upsert=True)
+    update = payload.model_dump(exclude_unset=True)
+    if update:
+        await db.profile.update_one({"id": "default"}, {"$set": update}, upsert=True)
     doc = await db.profile.find_one({"id": "default"}, {"_id": 0})
     if not doc:
         return Profile()
