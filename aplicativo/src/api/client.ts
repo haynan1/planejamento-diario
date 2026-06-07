@@ -1,11 +1,26 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-import { Priority, Status, Category, CATEGORIES } from "@/src/constants/goals";
+import { Priority, Status, Category, CATEGORIES, PRIORITIES } from "@/src/constants/goals";
 
 const GOALS_KEY = "rocket_forward:goals";
 const PROFILE_KEY = "rocket_forward:profile";
 const ACHIEVEMENTS_KEY = "rocket_forward:achievements";
 const FREE_ACTIVE_GOAL_LIMIT = 5;
+const RECURRENCE_ID_SEPARATOR = "::";
+const RECURRING_LOOKAHEAD_DAYS = 30;
+
+export type RecurrenceType = "daily" | "weekdays" | "weekends" | "count" | "forever";
+
+export interface GoalRecurrence {
+  type: RecurrenceType;
+  start_date: string;
+  days?: number;
+}
+
+export interface GoalOccurrenceOverride {
+  status: Status;
+  completed_at?: string | null;
+}
 
 export interface Goal {
   id: string;
@@ -18,6 +33,9 @@ export interface Goal {
   status: Status;
   created_at: string;
   completed_at?: string | null;
+  recurrence?: GoalRecurrence | null;
+  recurrence_overrides?: Record<string, GoalOccurrenceOverride>;
+  series_id?: string;
 }
 
 export interface Stats {
@@ -95,20 +113,114 @@ const defaultProfile: Profile = {
   avatar_base64: null,
 };
 
-const achievementDefinitions = [
-  { key: "first_goal", title: "Decolagem", description: "Criou sua primeira meta", icon: "rocket", group: "Inicio" },
-  { key: "completed_1", title: "Primeiro passo", description: "Concluiu 1 meta", icon: "check-circle", group: "Conclusao" },
-  { key: "completed_5", title: "Em ritmo", description: "Concluiu 5 metas", icon: "trending-up", group: "Conclusao" },
-  { key: "completed_10", title: "Acelerando", description: "Concluiu 10 metas", icon: "zap", group: "Conclusao" },
-  { key: "completed_50", title: "Em orbita", description: "Concluiu 50 metas", icon: "globe", group: "Conclusao" },
-  { key: "completed_100", title: "Estrela cadente", description: "Concluiu 100 metas", icon: "star", group: "Conclusao" },
-  { key: "streak_3", title: "Constancia inicial", description: "3 dias consecutivos produtivos", icon: "flame", group: "Sequencia" },
-  { key: "streak_7", title: "Semana de fogo", description: "7 dias consecutivos produtivos", icon: "flame", group: "Sequencia" },
-  { key: "streak_14", title: "Disciplina forjada", description: "14 dias consecutivos produtivos", icon: "flame", group: "Sequencia" },
-  { key: "streak_30", title: "Mente de aco", description: "30 dias consecutivos produtivos", icon: "flame", group: "Sequencia" },
-  { key: "all_categories", title: "Vida equilibrada", description: "Concluiu metas de todas as 9 categorias", icon: "compass", group: "Variedade" },
-  { key: "perfect_day", title: "Dia perfeito", description: "Concluiu 100% das metas em um dia", icon: "sun", group: "Dia" },
-] as const;
+interface AchievementDefinition {
+  key: string;
+  title: string;
+  description: string;
+  icon: string;
+  group: string;
+}
+
+const createdMilestones = [1, 3, 5, 10, 15, 20, 30, 50, 75, 100, 150, 200, 300, 500, 1000];
+const completedMilestones = [1, 5, 10, 15, 20, 25, 30, 40, 50, 60, 75, 100, 125, 150, 200, 250, 300, 400, 500, 1000];
+const streakMilestones = [2, 3, 5, 7, 10, 14, 21, 30, 45, 60, 75, 90, 120, 180, 365];
+const productiveDayMilestones = [1, 3, 5, 7, 10, 14, 21, 30, 45, 60, 90, 120, 180, 250, 365];
+const perfectDayMilestones = [1, 2, 3, 5, 7, 10, 15, 20, 30, 50];
+const recurringMilestones = [1, 3, 5, 10, 25, 50];
+
+function milestoneTitle(value: number, first: string, middle: string, high: string) {
+  if (value === 1) return first;
+  if (value < 50) return `${middle} ${value}`;
+  return `${high} ${value}`;
+}
+
+const achievementDefinitions: AchievementDefinition[] = [
+  ...createdMilestones.map((count) => ({
+    key: count === 1 ? "first_goal" : `created_${count}`,
+    title: milestoneTitle(count, "Decolagem", "Construtor", "Arquiteto"),
+    description: `Criou ${count} ${count === 1 ? "meta" : "metas"}`,
+    icon: count >= 100 ? "rocket" : "target",
+    group: "Inicio",
+  })),
+  ...completedMilestones.map((count) => ({
+    key: `completed_${count}`,
+    title:
+      count === 1
+        ? "Primeiro passo"
+        : count === 5
+          ? "Em ritmo"
+          : count === 10
+            ? "Acelerando"
+            : count === 50
+              ? "Em orbita"
+              : count === 100
+                ? "Estrela cadente"
+                : milestoneTitle(count, "Primeiro passo", "Impulso", "Lenda"),
+    description: `Concluiu ${count} ${count === 1 ? "meta" : "metas"}`,
+    icon: count >= 100 ? "star" : count >= 50 ? "globe" : count >= 10 ? "zap" : "check-circle",
+    group: "Conclusao",
+  })),
+  ...streakMilestones.map((days) => ({
+    key: `streak_${days}`,
+    title:
+      days === 3
+        ? "Constancia inicial"
+        : days === 7
+          ? "Semana de fogo"
+          : days === 14
+            ? "Disciplina forjada"
+            : days === 30
+              ? "Mente de aco"
+              : milestoneTitle(days, "Faísca", "Sequência", "Chama eterna"),
+    description: `${days} dias consecutivos produtivos`,
+    icon: "flame",
+    group: "Sequencia",
+  })),
+  ...productiveDayMilestones.map((days) => ({
+    key: `productive_days_${days}`,
+    title: milestoneTitle(days, "Dia produtivo", "Rotina", "Calendario dourado"),
+    description: `Teve ${days} ${days === 1 ? "dia produtivo" : "dias produtivos"}`,
+    icon: "sun",
+    group: "Dias produtivos",
+  })),
+  ...perfectDayMilestones.map((days) => ({
+    key: days === 1 ? "perfect_day" : `perfect_days_${days}`,
+    title: days === 1 ? "Dia perfeito" : `Perfeição ${days}`,
+    description: `Concluiu 100% das metas em ${days} ${days === 1 ? "dia" : "dias"}`,
+    icon: "award",
+    group: "Dia",
+  })),
+  ...CATEGORIES.map((category) => ({
+    key: `category_${category.key}`,
+    title: `Explorador: ${category.label}`,
+    description: `Concluiu uma meta de ${category.label}`,
+    icon: "compass",
+    group: "Variedade",
+  })),
+  {
+    key: "all_categories",
+    title: "Vida equilibrada",
+    description: "Concluiu metas de todas as 9 categorias",
+    icon: "compass",
+    group: "Variedade",
+  },
+  ...PRIORITIES.flatMap((priority) =>
+    [1, 5, 25].map((count) => ({
+      key: `priority_${priority.key}_${count}`,
+      title: `${priority.label} ${count}`,
+      description: `Concluiu ${count} ${count === 1 ? "meta" : "metas"} de prioridade ${priority.label.toLowerCase()}`,
+      icon: "flag",
+      group: "Prioridade",
+    })),
+  ),
+  ...recurringMilestones.map((count) => ({
+    key: `recurring_${count}`,
+    title: milestoneTitle(count, "Ritual iniciado", "Automação", "Maestro da rotina"),
+    description: `Criou ${count} ${count === 1 ? "meta repetida" : "metas repetidas"}`,
+    icon: "repeat",
+    group: "Repetição",
+  })),
+];
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
 const addDays = (date: Date, days: number) => {
@@ -119,6 +231,77 @@ const addDays = (date: Date, days: number) => {
 const isoDate = (date: Date) => date.toISOString().slice(0, 10);
 const uid = () =>
   `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+
+const lastYearRange = () => {
+  const today = todayISO();
+  return {
+    date_from: isoDate(addDays(new Date(`${today}T00:00:00`), -365)),
+    date_to: today,
+  };
+};
+
+const makeOccurrenceId = (goalId: string, date: string) => `${goalId}${RECURRENCE_ID_SEPARATOR}${date}`;
+
+function parseOccurrenceId(id: string) {
+  const [goalId, date] = id.split(RECURRENCE_ID_SEPARATOR);
+  if (!goalId || !date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
+  return { goalId, date };
+}
+
+function getRecurringRange(filters: GoalFilters) {
+  const today = todayISO();
+  if (filters.date_eq) return { from: filters.date_eq, to: filters.date_eq };
+  return {
+    from: filters.date_from ?? today,
+    to: filters.date_to ?? isoDate(addDays(new Date(`${today}T00:00:00`), RECURRING_LOOKAHEAD_DAYS)),
+  };
+}
+
+function recurrenceMatchesDate(recurrence: GoalRecurrence, date: string) {
+  if (date < recurrence.start_date) return false;
+
+  const current = new Date(`${date}T00:00:00`);
+  const start = new Date(`${recurrence.start_date}T00:00:00`);
+  const daysSinceStart = Math.round((current.getTime() - start.getTime()) / 86400000);
+  if (daysSinceStart < 0) return false;
+  if (recurrence.type === "count" && daysSinceStart >= (recurrence.days ?? 0)) return false;
+
+  const day = current.getDay();
+  if (recurrence.type === "weekdays") return day >= 1 && day <= 5;
+  if (recurrence.type === "weekends") return day === 0 || day === 6;
+  return true;
+}
+
+function expandRecurringGoal(goal: Goal, from: string, to: string) {
+  if (!goal.recurrence) return [goal];
+
+  const items: Goal[] = [];
+  let cursor = new Date(`${from}T00:00:00`);
+  const end = new Date(`${to}T00:00:00`);
+
+  while (cursor <= end) {
+    const date = isoDate(cursor);
+    if (recurrenceMatchesDate(goal.recurrence, date)) {
+      const override = goal.recurrence_overrides?.[date];
+      items.push({
+        ...goal,
+        id: makeOccurrenceId(goal.id, date),
+        series_id: goal.id,
+        date,
+        status: override?.status ?? goal.status,
+        completed_at: override?.completed_at ?? null,
+      });
+    }
+    cursor = addDays(cursor, 1);
+  }
+
+  return items;
+}
+
+function expandGoals(goals: Goal[], filters: GoalFilters) {
+  const range = getRecurringRange(filters);
+  return goals.flatMap((goal) => expandRecurringGoal(goal, range.from, range.to));
+}
 
 async function readJson<T>(key: string, fallback: T): Promise<T> {
   const raw = await AsyncStorage.getItem(key);
@@ -206,31 +389,55 @@ function evaluateAchievements(goals: Goal[]) {
   const completedGoals = goals.filter((g) => g.status === "concluida");
   const dates = productiveDates(goals);
   const completedCategories = new Set(completedGoals.map((g) => g.category));
+  const createdGoalIds = new Set(goals.map((g) => g.series_id ?? g.id));
+  const recurringGoalIds = new Set(goals.filter((g) => g.recurrence).map((g) => g.series_id ?? g.id));
+  const completedByPriority = new Map<Priority, number>();
   const byDate = new Map<string, Goal[]>();
 
   for (const goal of goals) {
     byDate.set(goal.date, [...(byDate.get(goal.date) ?? []), goal]);
   }
 
-  const perfectDay = [...byDate.values()].some(
+  for (const goal of completedGoals) {
+    completedByPriority.set(goal.priority, (completedByPriority.get(goal.priority) ?? 0) + 1);
+  }
+
+  const perfectDayCount = [...byDate.values()].filter(
     (items) => items.length > 0 && items.every((g) => g.status === "concluida"),
-  );
+  ).length;
   const streak = bestStreak(dates);
 
-  return {
-    first_goal: goals.length >= 1,
-    completed_1: completedGoals.length >= 1,
-    completed_5: completedGoals.length >= 5,
-    completed_10: completedGoals.length >= 10,
-    completed_50: completedGoals.length >= 50,
-    completed_100: completedGoals.length >= 100,
-    streak_3: streak >= 3,
-    streak_7: streak >= 7,
-    streak_14: streak >= 14,
-    streak_30: streak >= 30,
-    all_categories: CATEGORIES.every((c) => completedCategories.has(c.key)),
-    perfect_day: perfectDay,
-  };
+  const evaluated: Record<string, boolean> = {};
+
+  for (const count of createdMilestones) {
+    evaluated[count === 1 ? "first_goal" : `created_${count}`] = createdGoalIds.size >= count;
+  }
+  for (const count of completedMilestones) {
+    evaluated[`completed_${count}`] = completedGoals.length >= count;
+  }
+  for (const days of streakMilestones) {
+    evaluated[`streak_${days}`] = streak >= days;
+  }
+  for (const days of productiveDayMilestones) {
+    evaluated[`productive_days_${days}`] = dates.size >= days;
+  }
+  for (const days of perfectDayMilestones) {
+    evaluated[days === 1 ? "perfect_day" : `perfect_days_${days}`] = perfectDayCount >= days;
+  }
+  for (const category of CATEGORIES) {
+    evaluated[`category_${category.key}`] = completedCategories.has(category.key);
+  }
+  evaluated.all_categories = CATEGORIES.every((c) => completedCategories.has(c.key));
+  for (const priority of PRIORITIES) {
+    for (const count of [1, 5, 25]) {
+      evaluated[`priority_${priority.key}_${count}`] = (completedByPriority.get(priority.key) ?? 0) >= count;
+    }
+  }
+  for (const count of recurringMilestones) {
+    evaluated[`recurring_${count}`] = recurringGoalIds.size >= count;
+  }
+
+  return evaluated;
 }
 
 function hydrateAchievements(
@@ -280,9 +487,17 @@ async function calculateStats(goals: Goal[]): Promise<Stats> {
 }
 
 export const api = {
+  getGoal: async (id: string): Promise<Goal> => {
+    const goals = await getGoals();
+    const occurrence = parseOccurrenceId(id);
+    const goal = goals.find((g) => g.id === (occurrence?.goalId ?? id));
+    if (!goal) throw new Error("Meta nao encontrada");
+    return occurrence ? expandRecurringGoal(goal, occurrence.date, occurrence.date)[0] : goal;
+  },
+
   listGoals: async (filters: GoalFilters = {}): Promise<Goal[]> => {
     const goals = await getGoals();
-    return sortGoals(applyFilters(goals, filters));
+    return sortGoals(applyFilters(expandGoals(goals, filters), filters));
   },
 
   createGoal: async (payload: Omit<Goal, "id" | "created_at" | "completed_at">): Promise<Goal> => {
@@ -308,10 +523,40 @@ export const api = {
 
   updateGoal: async (id: string, patch: Partial<Goal>): Promise<Goal> => {
     const goals = await getGoals();
-    const index = goals.findIndex((g) => g.id === id);
+    const occurrence = parseOccurrenceId(id);
+    const index = goals.findIndex((g) => g.id === (occurrence?.goalId ?? id));
     if (index < 0) throw new Error("Meta nao encontrada");
 
     const previous = goals[index];
+    const occurrenceStatusOnly =
+      occurrence &&
+      patch.status !== undefined &&
+      Object.keys(patch).every((key) => key === "status" || key === "completed_at");
+
+    if (occurrenceStatusOnly) {
+      const nextStatus = patch.status as Status;
+      const statusChanged = nextStatus !== (previous.recurrence_overrides?.[occurrence.date]?.status ?? previous.status);
+      const nextOverrides = { ...(previous.recurrence_overrides ?? {}) };
+      nextOverrides[occurrence.date] = {
+        status: nextStatus,
+        completed_at:
+          statusChanged && nextStatus === "concluida"
+            ? new Date().toISOString()
+            : statusChanged
+              ? null
+              : previous.recurrence_overrides?.[occurrence.date]?.completed_at ?? null,
+      };
+
+      const next: Goal = {
+        ...previous,
+        recurrence_overrides: nextOverrides,
+      };
+      const updated = [...goals];
+      updated[index] = next;
+      await saveGoals(updated);
+      return expandRecurringGoal(next, occurrence.date, occurrence.date)[0];
+    }
+
     const statusChanged = patch.status !== undefined && patch.status !== previous.status;
     const next: Goal = {
       ...previous,
@@ -334,11 +579,15 @@ export const api = {
 
   deleteGoal: async (id: string): Promise<{ ok: boolean }> => {
     const goals = await getGoals();
-    await saveGoals(goals.filter((g) => g.id !== id));
+    const occurrence = parseOccurrenceId(id);
+    await saveGoals(goals.filter((g) => g.id !== (occurrence?.goalId ?? id)));
     return { ok: true };
   },
 
-  getStats: async (): Promise<Stats> => calculateStats(await getGoals()),
+  getStats: async (): Promise<Stats> => {
+    const goals = await getGoals();
+    return calculateStats(expandGoals(goals, lastYearRange()));
+  },
 
   getProfile: async (): Promise<Profile> => {
     const stored = await readJson<Partial<Profile>>(PROFILE_KEY, {});
@@ -358,7 +607,7 @@ export const api = {
 
   listAchievements: async (): Promise<AchievementsResponse> => {
     const [goals, unlockedMap] = await Promise.all([getGoals(), getUnlockedMap()]);
-    const items = hydrateAchievements(evaluateAchievements(goals), unlockedMap);
+    const items = hydrateAchievements(evaluateAchievements(expandGoals(goals, lastYearRange())), unlockedMap);
     return {
       items,
       total: items.length,
@@ -368,7 +617,7 @@ export const api = {
 
   checkAchievements: async (): Promise<{ newly_unlocked: Achievement[]; total_unlocked: number }> => {
     const [goals, unlockedMap] = await Promise.all([getGoals(), getUnlockedMap()]);
-    const evaluated = evaluateAchievements(goals);
+    const evaluated = evaluateAchievements(expandGoals(goals, lastYearRange()));
     const now = new Date().toISOString();
     const nextMap = { ...unlockedMap };
     const newlyUnlockedKeys: string[] = [];
@@ -395,7 +644,8 @@ export const api = {
     const goals = await getGoals();
     const today = new Date(`${todayISO()}T00:00:00`);
     const start = isoDate(addDays(today, -29));
-    const completed = goals.filter((g) => g.status === "concluida" && g.date >= start);
+    const expandedGoals = expandGoals(goals, { date_from: start, date_to: isoDate(today) });
+    const completed = expandedGoals.filter((g) => g.status === "concluida" && g.date >= start);
     const by_category: Record<string, number> = {};
     const by_priority: Record<string, number> = {};
 

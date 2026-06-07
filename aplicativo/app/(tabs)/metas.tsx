@@ -26,7 +26,7 @@ export default function MetasScreen() {
   const { colors } = useTheme();
   const router = useRouter();
   const toast = useToast();
-  const { checkAndCelebrate } = useAchievements();
+  const { checkAndCelebrate, celebrateGoalCompletion } = useAchievements();
   const [goals, setGoals] = useState<Goal[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [filterTab, setFilterTab] = useState<FilterTab>("status");
@@ -64,7 +64,10 @@ export default function MetasScreen() {
       }
       toast.show(next === "concluida" ? "Meta concluída!" : "Meta reaberta", "success");
       load();
-      if (next === "concluida") checkAndCelebrate();
+      if (next === "concluida") {
+        celebrateGoalCompletion(g.title);
+        checkAndCelebrate();
+      }
     } catch {
       toast.show("Erro ao atualizar", "error");
     }
@@ -93,7 +96,7 @@ export default function MetasScreen() {
   };
 
   const onEdit = (g: Goal) => {
-    router.push({ pathname: "/criar-meta", params: { id: g.id } });
+    router.push({ pathname: "/criar-meta", params: { id: g.series_id ?? g.id } });
   };
 
   const tabs: { key: FilterTab; label: string }[] = [

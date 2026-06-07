@@ -1,5 +1,5 @@
-import React from "react";
-import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import React, { useEffect, useRef } from "react";
+import { View, Text, TouchableOpacity, StyleSheet, Animated } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useTheme } from "@/src/theme/ThemeProvider";
 import { Goal } from "@/src/api/client";
@@ -28,6 +28,14 @@ const formatDate = (iso: string) => {
   }
 };
 
+const recurrenceLabel = (goal: Goal) => {
+  if (!goal.recurrence) return "";
+  if (goal.recurrence.type === "weekdays") return "Dias úteis";
+  if (goal.recurrence.type === "weekends") return "Finais de semana";
+  if (goal.recurrence.type === "count") return `${goal.recurrence.days ?? 0} dias`;
+  return "Sempre";
+};
+
 export default function GoalCard({
   goal,
   onToggleComplete,
@@ -41,6 +49,18 @@ export default function GoalCard({
   const pri = PRIORITIES.find((p) => p.key === goal.priority)!;
   const st = STATUSES.find((s) => s.key === goal.status)!;
   const completed = goal.status === "concluida";
+  const checkScale = useRef(new Animated.Value(completed ? 1 : 0.86)).current;
+
+  useEffect(() => {
+    if (completed) {
+      Animated.sequence([
+        Animated.spring(checkScale, { toValue: 1.22, friction: 4, useNativeDriver: true }),
+        Animated.spring(checkScale, { toValue: 1, friction: 5, useNativeDriver: true }),
+      ]).start();
+    } else {
+      Animated.spring(checkScale, { toValue: 0.86, friction: 6, useNativeDriver: true }).start();
+    }
+  }, [checkScale, completed]);
 
   const statusColor: Record<Status, string> = {
     pendente: colors.textMuted,
@@ -57,6 +77,7 @@ export default function GoalCard({
       ]}
       testID={`goal-card-${goal.id}`}
     >
+      <Animated.View style={{ transform: [{ scale: checkScale }] }}>
       <TouchableOpacity
         onPress={() => onToggleComplete?.(goal)}
         style={[
@@ -71,6 +92,7 @@ export default function GoalCard({
       >
         {completed ? <Feather name="check" size={16} color="#fff" /> : null}
       </TouchableOpacity>
+      </Animated.View>
 
       <View style={styles.body}>
         <Text
@@ -108,6 +130,14 @@ export default function GoalCard({
               {st.label}
             </Text>
           </TouchableOpacity>
+          {goal.recurrence ? (
+            <View style={[styles.chip, { backgroundColor: colors.accent + "1A" }]}>
+              <Feather name="repeat" size={11} color={colors.accent} />
+              <Text style={[styles.chipText, { color: colors.accent }]}>
+                {recurrenceLabel(goal)}
+              </Text>
+            </View>
+          ) : null}
           <View style={styles.dateRow}>
             <Feather name="calendar" size={11} color={colors.textMuted} />
             <Text style={[styles.dateText, { color: colors.textMuted }]}>

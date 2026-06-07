@@ -55,7 +55,7 @@ export default function PlanejamentoScreen() {
   const { colors } = useTheme();
   const router = useRouter();
   const toast = useToast();
-  const { checkAndCelebrate } = useAchievements();
+  const { checkAndCelebrate, celebrateGoalCompletion } = useAchievements();
   const [mode, setMode] = useState<Mode>("semana");
   const [goals, setGoals] = useState<Goal[]>([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -113,7 +113,10 @@ export default function PlanejamentoScreen() {
       await api.updateGoal(g.id, { status: next });
       if (next === "concluida") await cancelGoalNotification(g.id);
       load();
-      if (next === "concluida") checkAndCelebrate();
+      if (next === "concluida") {
+        celebrateGoalCompletion(g.title);
+        checkAndCelebrate();
+      }
     } catch {
       toast.show("Erro ao atualizar", "error");
     }

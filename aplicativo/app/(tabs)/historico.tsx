@@ -7,6 +7,7 @@ import { useTheme } from "@/src/theme/ThemeProvider";
 import { api, Stats } from "@/src/api/client";
 import StatCard from "@/src/components/StatCard";
 import { useToast } from "@/src/components/Toast";
+import { formatMetricPercent } from "@/src/utils/format";
 
 const dayLabel = (iso: string) => {
   const d = new Date(iso + "T00:00:00");
@@ -72,7 +73,7 @@ export default function HistoricoScreen() {
         <View style={styles.grid}>
           <StatCard
             label="Taxa de Conclusão"
-            value={`${stats?.completion_rate ?? 0}%`}
+            value={formatMetricPercent(stats?.completion_rate ?? 0)}
             icon="trending-up"
             accentColor={colors.primary}
             testID="stat-rate"

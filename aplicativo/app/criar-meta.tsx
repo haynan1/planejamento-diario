@@ -14,7 +14,7 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 
 import { useTheme } from "@/src/theme/ThemeProvider";
-import { api, FreeLimitError } from "@/src/api/client";
+import { api, FreeLimitError, RecurrenceType } from "@/src/api/client";
 import PrimaryButton from "@/src/components/PrimaryButton";
 import {
   CATEGORIES,
@@ -27,6 +27,7 @@ import {
 import { useToast } from "@/src/components/Toast";
 import { useAchievements } from "@/src/components/AchievementProvider";
 import { scheduleGoalNotification, cancelGoalNotification } from "@/src/notifications";
+import { formatGoalTimeInput, normalizeGoalTime } from "@/src/utils/time";
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
@@ -41,6 +42,16 @@ const labelDate = (iso: string) => {
   return d.toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit", month: "short" });
 };
 
+type RecurrenceOption = "none" | RecurrenceType;
+
+const recurrenceOptions: { key: RecurrenceOption; label: string }[] = [
+  { key: "none", label: "Não repetir" },
+  { key: "weekdays", label: "Dias úteis" },
+  { key: "weekends", label: "Finais de semana" },
+  { key: "count", label: "Quantidade" },
+  { key: "forever", label: "Sempre" },
+];
+
 export default function CriarMetaScreen() {
   const { colors } = useTheme();
   const router = useRouter();
@@ -53,6 +64,8 @@ export default function CriarMetaScreen() {
   const [description, setDescription] = useState("");
   const [date, setDate] = useState(todayISO());
   const [time, setTime] = useState<string>("");
+  const [recurrence, setRecurrence] = useState<RecurrenceOption>("none");
+  const [recurrenceDays, setRecurrenceDays] = useState("7");
   const [priority, setPriority] = useState<Priority>("media");
   const [category, setCategory] = useState<Category>("pessoal");
   const [status, setStatus] = useState<Status>("pendente");
@@ -62,17 +75,16 @@ export default function CriarMetaScreen() {
     if (!editingId) return;
     (async () => {
       try {
-        const goals = await api.listGoals();
-        const g = goals.find((x) => x.id === editingId);
-        if (g) {
-          setTitle(g.title);
-          setDescription(g.description ?? "");
-          setDate(g.date);
-          setTime(g.time ?? "");
-          setPriority(g.priority);
-          setCategory(g.category);
-          setStatus(g.status);
-        }
+        const g = await api.getGoal(editingId);
+        setTitle(g.title);
+        setDescription(g.description ?? "");
+        setDate(g.date);
+        setTime(g.time ?? "");
+        setRecurrence(g.recurrence?.type ?? "none");
+        setRecurrenceDays(String(g.recurrence?.days ?? 7));
+        setPriority(g.priority);
+        setCategory(g.category);
+        setStatus(g.status);
       } catch {
         // ignore
       }
@@ -94,13 +106,34 @@ export default function CriarMetaScreen() {
       toast.show("Informe um título para a meta", "error");
       return;
     }
+    const normalizedTime = normalizeGoalTime(time);
+    if (time.trim() && !normalizedTime) {
+      toast.show("Informe um horário válido no formato HH:MM", "error");
+      return;
+    }
+    const parsedRecurrenceDays = Number(recurrenceDays);
+    if (recurrence === "count" && (!Number.isInteger(parsedRecurrenceDays) || parsedRecurrenceDays < 1)) {
+      toast.show("Informe uma quantidade de dias válida", "error");
+      return;
+    }
+    const recurrencePayload =
+      recurrence === "none"
+        ? null
+        : {
+            type: recurrence,
+            start_date: date,
+            ...(recurrence === "count" ? { days: parsedRecurrenceDays } : {}),
+          };
+
     setSaving(true);
     try {
       const payload = {
         title: title.trim(),
         description: description.trim(),
         date,
-        time: time.trim() || null,
+        time: normalizedTime,
+        recurrence: recurrencePayload,
+        recurrence_overrides: {},
         priority,
         category,
         status,
@@ -239,15 +272,69 @@ export default function CriarMetaScreen() {
             <Text style={[styles.label, { color: colors.textSecondary }]}>Horário (opcional)</Text>
             <TextInput
               value={time}
-              onChangeText={setTime}
+              onChangeText={(value) => setTime(formatGoalTimeInput(value))}
               placeholder="HH:MM"
               placeholderTextColor={colors.textMuted}
+              keyboardType="numeric"
               style={[
                 styles.input,
                 { color: colors.textPrimary, backgroundColor: colors.surface, borderColor: colors.border },
               ]}
               testID="input-time"
             />
+          </View>
+
+          <View style={styles.field}>
+            <Text style={[styles.label, { color: colors.textSecondary }]}>Repetição</Text>
+            <View style={styles.catGrid}>
+              {recurrenceOptions.map((option) => {
+                const active = recurrence === option.key;
+                return (
+                  <TouchableOpacity
+                    key={option.key}
+                    onPress={() => setRecurrence(option.key)}
+                    style={[
+                      styles.catItem,
+                      {
+                        backgroundColor: active ? colors.accent : colors.surface,
+                        borderColor: active ? colors.accent : colors.border,
+                      },
+                    ]}
+                    testID={`recurrence-${option.key}`}
+                  >
+                    <Feather name={option.key === "none" ? "x-circle" : "repeat"} size={14} color={active ? "#fff" : colors.textSecondary} />
+                    <Text
+                      style={{
+                        color: active ? "#fff" : colors.textSecondary,
+                        fontWeight: "600",
+                        fontSize: 12,
+                      }}
+                    >
+                      {option.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            {recurrence === "count" ? (
+              <>
+                <TextInput
+                  value={recurrenceDays}
+                  onChangeText={(value) => setRecurrenceDays(value.replace(/\D/g, "").slice(0, 3))}
+                  placeholder="Ex: 7"
+                  placeholderTextColor={colors.textMuted}
+                  keyboardType="numeric"
+                  style={[
+                    styles.input,
+                    { color: colors.textPrimary, backgroundColor: colors.surface, borderColor: colors.border },
+                  ]}
+                  testID="input-recurrence-days"
+                />
+                <Text style={[styles.helper, { color: colors.textMuted }]}>
+                  Inclui a data escolhida.
+                </Text>
+              </>
+            ) : null}
           </View>
 
           <View style={styles.field}>
@@ -382,6 +469,7 @@ const styles = StyleSheet.create({
   scroll: { padding: 24, paddingBottom: 24, gap: 20 },
   field: { gap: 8 },
   label: { fontSize: 11, fontWeight: "800", letterSpacing: 1, textTransform: "uppercase" },
+  helper: { fontSize: 11, fontWeight: "600", marginTop: -2 },
   input: {
     borderRadius: 14,
     borderWidth: 1,

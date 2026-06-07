@@ -29,7 +29,7 @@ export default function DashboardScreen() {
   const { colors, mode } = useTheme();
   const router = useRouter();
   const toast = useToast();
-  const { checkAndCelebrate } = useAchievements();
+  const { checkAndCelebrate, celebrateGoalCompletion } = useAchievements();
   const [goals, setGoals] = useState<Goal[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -74,7 +74,10 @@ export default function DashboardScreen() {
       }
       toast.show(next === "concluida" ? "Meta concluída! Continue avançando." : "Meta reaberta", "success");
       load();
-      if (next === "concluida") checkAndCelebrate();
+      if (next === "concluida") {
+        celebrateGoalCompletion(g.title);
+        checkAndCelebrate();
+      }
     } catch {
       toast.show("Erro ao atualizar meta", "error");
     }

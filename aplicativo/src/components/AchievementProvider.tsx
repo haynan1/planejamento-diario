@@ -6,6 +6,8 @@ import {
   Modal,
   TouchableOpacity,
   Animated,
+  Easing,
+  Dimensions,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -15,6 +17,7 @@ import { api, Achievement } from "@/src/api/client";
 interface CtxValue {
   /** Evaluates local achievements and shows the first newly unlocked one. */
   checkAndCelebrate: () => Promise<void>;
+  celebrateGoalCompletion: (goalTitle?: string) => void;
 }
 
 const Ctx = createContext<CtxValue | null>(null);
@@ -29,14 +32,30 @@ const iconMap: Record<string, React.ComponentProps<typeof Feather>["name"]> = {
   flame: "zap",
   compass: "compass",
   sun: "sun",
+  award: "award",
+  target: "target",
+  flag: "flag",
+  repeat: "repeat",
 };
 
 export function AchievementProvider({ children }: { children: React.ReactNode }) {
   const { colors } = useTheme();
   const [queue, setQueue] = useState<Achievement[]>([]);
   const [current, setCurrent] = useState<Achievement | null>(null);
+  const [completionTitle, setCompletionTitle] = useState<string | null>(null);
   const scale = useRef(new Animated.Value(0.7)).current;
   const opacity = useRef(new Animated.Value(0)).current;
+  const completionProgress = useRef(new Animated.Value(0)).current;
+  const completionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const confetti = useRef(
+    Array.from({ length: 18 }, (_, index) => ({
+      key: index,
+      left: 16 + ((index * 37) % 68),
+      delay: (index % 6) * 45,
+      rotate: index % 2 === 0 ? "18deg" : "-24deg",
+      color: ["#22C55E", "#38BDF8", "#F97316", "#FACC15", "#A78BFA", "#FB7185"][index % 6],
+    }))
+  ).current;
 
   const showNext = useCallback(
     (list: Achievement[]) => {
@@ -76,9 +95,134 @@ export function AchievementProvider({ children }: { children: React.ReactNode })
     }
   }, [showNext]);
 
+  const celebrateGoalCompletion = useCallback(
+    (goalTitle?: string) => {
+      if (completionTimer.current) clearTimeout(completionTimer.current);
+      completionProgress.stopAnimation();
+      completionProgress.setValue(0);
+      setCompletionTitle(goalTitle?.trim() || "Meta concluída");
+
+      Animated.sequence([
+        Animated.timing(completionProgress, {
+          toValue: 1,
+          duration: 760,
+          easing: Easing.out(Easing.back(1.15)),
+          useNativeDriver: true,
+        }),
+        Animated.delay(1050),
+        Animated.timing(completionProgress, {
+          toValue: 2,
+          duration: 260,
+          easing: Easing.in(Easing.quad),
+          useNativeDriver: true,
+        }),
+      ]).start(({ finished }) => {
+        if (finished) setCompletionTitle(null);
+      });
+
+      completionTimer.current = setTimeout(() => setCompletionTitle(null), 2400);
+    },
+    [completionProgress]
+  );
+
   return (
-    <Ctx.Provider value={{ checkAndCelebrate }}>
+    <Ctx.Provider value={{ checkAndCelebrate, celebrateGoalCompletion }}>
       {children}
+      {completionTitle ? (
+        <View pointerEvents="none" style={styles.completionOverlay} testID="goal-completion-celebration">
+          {confetti.map((piece) => {
+            const translateY = completionProgress.interpolate({
+              inputRange: [0, 1, 2],
+              outputRange: [-80, 170 + (piece.key % 5) * 18, 210],
+            });
+            const translateX = completionProgress.interpolate({
+              inputRange: [0, 1, 2],
+              outputRange: [0, piece.key % 2 === 0 ? 28 : -28, piece.key % 2 === 0 ? 38 : -38],
+            });
+            const pieceOpacity = completionProgress.interpolate({
+              inputRange: [0, 0.15, 1.6, 2],
+              outputRange: [0, 1, 1, 0],
+            });
+            return (
+              <Animated.View
+                key={piece.key}
+                style={[
+                  styles.confettiPiece,
+                  {
+                    left: `${piece.left}%`,
+                    backgroundColor: piece.color,
+                    opacity: pieceOpacity,
+                    transform: [
+                      { translateY },
+                      { translateX },
+                      { rotate: piece.rotate },
+                    ],
+                  },
+                ]}
+              />
+            );
+          })}
+
+          <Animated.View
+            style={[
+              styles.completionCard,
+              {
+                backgroundColor: colors.surfaceElevated,
+                borderColor: colors.success + "55",
+                opacity: completionProgress.interpolate({
+                  inputRange: [0, 0.12, 1.75, 2],
+                  outputRange: [0, 1, 1, 0],
+                }),
+                transform: [
+                  {
+                    translateY: completionProgress.interpolate({
+                      inputRange: [0, 1, 2],
+                      outputRange: [90, 0, -24],
+                    }),
+                  },
+                  {
+                    scale: completionProgress.interpolate({
+                      inputRange: [0, 0.45, 0.68, 1, 2],
+                      outputRange: [0.72, 1.12, 0.96, 1, 0.95],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          >
+            <Animated.View
+              style={[
+                styles.mascotBubble,
+                {
+                  backgroundColor: colors.success,
+                  transform: [
+                    {
+                      rotate: completionProgress.interpolate({
+                        inputRange: [0, 0.35, 0.7, 1],
+                        outputRange: ["-12deg", "10deg", "-5deg", "0deg"],
+                      }),
+                    },
+                  ],
+                },
+              ]}
+            >
+              <Feather name="navigation" size={34} color="#fff" />
+            </Animated.View>
+            <View style={styles.completionTextWrap}>
+              <Text style={[styles.completionKicker, { color: colors.success }]}>BOA!</Text>
+              <Text style={[styles.completionTitle, { color: colors.textPrimary }]} numberOfLines={1}>
+                Meta concluída
+              </Text>
+              <Text style={[styles.completionDesc, { color: colors.textSecondary }]} numberOfLines={1}>
+                {completionTitle}
+              </Text>
+            </View>
+            <View style={[styles.xpPill, { backgroundColor: colors.success + "20" }]}>
+              <Text style={[styles.xpText, { color: colors.success }]}>+10 XP</Text>
+            </View>
+          </Animated.View>
+        </View>
+      ) : null}
       <Modal
         transparent
         visible={!!current}
@@ -135,13 +279,61 @@ export function AchievementProvider({ children }: { children: React.ReactNode })
 
 export function useAchievements() {
   const c = useContext(Ctx);
-  if (!c) return { checkAndCelebrate: async () => {} };
+  if (!c) return { checkAndCelebrate: async () => {}, celebrateGoalCompletion: () => {} };
   return c;
 }
 
 export { iconMap };
 
 const styles = StyleSheet.create({
+  completionOverlay: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    zIndex: 9000,
+    alignItems: "center",
+    justifyContent: "flex-end",
+    paddingHorizontal: 18,
+    paddingBottom: 92,
+  },
+  completionCard: {
+    width: "100%",
+    maxWidth: Math.min(420, Dimensions.get("window").width - 36),
+    minHeight: 92,
+    borderWidth: 1,
+    borderRadius: 20,
+    padding: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    shadowColor: "#000",
+    shadowOpacity: 0.22,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 8,
+  },
+  mascotBubble: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  completionTextWrap: { flex: 1, minWidth: 0 },
+  completionKicker: { fontSize: 12, fontWeight: "900", letterSpacing: 1.2 },
+  completionTitle: { fontSize: 18, fontWeight: "900", letterSpacing: -0.2, marginTop: 1 },
+  completionDesc: { fontSize: 12, fontWeight: "600", marginTop: 2 },
+  xpPill: { paddingHorizontal: 10, paddingVertical: 7, borderRadius: 999 },
+  xpText: { fontSize: 12, fontWeight: "900" },
+  confettiPiece: {
+    position: "absolute",
+    top: 0,
+    width: 8,
+    height: 16,
+    borderRadius: 3,
+  },
   backdrop: { flex: 1, alignItems: "center", justifyContent: "center", padding: 32 },
   card: {
     width: "100%",

@@ -2,6 +2,7 @@ import React from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useTheme } from "@/src/theme/ThemeProvider";
+import { formatMetricNumber } from "@/src/utils/format";
 
 interface Props {
   label: string;
@@ -14,6 +15,8 @@ interface Props {
 export default function StatCard({ label, value, icon, accentColor, testID }: Props) {
   const { colors } = useTheme();
   const tint = accentColor || colors.primary;
+  const displayValue = typeof value === "number" ? formatMetricNumber(value) : value;
+
   return (
     <View
       style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}
@@ -24,7 +27,7 @@ export default function StatCard({ label, value, icon, accentColor, testID }: Pr
           <Feather name={icon} size={18} color={tint} />
         </View>
       ) : null}
-      <Text style={[styles.value, { color: colors.textPrimary }]}>{value}</Text>
+      <Text style={[styles.value, { color: colors.textPrimary }]}>{displayValue}</Text>
       <Text style={[styles.label, { color: colors.textSecondary }]}>{label}</Text>
     </View>
   );
