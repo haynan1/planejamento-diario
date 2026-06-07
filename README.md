@@ -56,7 +56,7 @@ No Git Bash, rode:
 
 ```bash
 cd aplicativo
-./instalar-dependencias.sh
+bash ./instalar-dependencias.sh
 ```
 
 Ou manualmente:
@@ -74,7 +74,7 @@ Para abrir no navegador:
 
 ```bash
 cd aplicativo
-./rodar-web.sh
+bash ./rodar-web.sh
 ```
 
 Depois acesse:
@@ -119,7 +119,7 @@ Agora gere o APK:
 
 ```bash
 cd aplicativo
-./gerar-apk.sh
+bash ./gerar-apk.sh
 ```
 
 Na primeira execução, o Expo/EAS pode perguntar se você quer configurar o projeto na sua conta. Responda `Y`.
@@ -148,7 +148,7 @@ Quando fizer mudanças no app, gere outro APK:
 
 ```bash
 cd aplicativo
-./gerar-apk.sh
+bash ./gerar-apk.sh
 ```
 
 Depois baixe o novo APK e instale por cima do anterior.

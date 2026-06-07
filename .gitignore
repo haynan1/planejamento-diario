@@ -88,3 +88,10 @@ android-sdk/
 credentials.json
 *.key
 .credentials
+*.apk
+*.aab
+*.jks
+*.keystore
+*.p8
+*.p12
+*.mobileprovision
