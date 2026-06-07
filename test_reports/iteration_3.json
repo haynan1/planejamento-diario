@@ -1,0 +1,60 @@
+{
+  "summary": "Iteration 3 verified. Backend: 9/10 pytest passed in test_iteration3.py — avatar_base64 added to Profile (default null), PUT /api/profile sets the avatar to a data URI, GET reflects it, partial updates preserve avatar, and POST /api/clear-data resets avatar to null. Regression of /api/goals CRUD+filters, /api/stats, /api/achievements (+check), /api/reports/monthly and FREE_LIMIT_REACHED gating all PASS. 1 backend bug found: PUT /api/profile with {avatar_base64: null} does NOT actually clear the avatar — update_profile filters out None values (server.py:264), so the frontend removeAvatar() flow silently keeps the old photo. Frontend (mobile 390x844): all requested flows PASS — Dashboard header-avatar tappable and navigates to Perfil; Perfil renders avatar-picker with camera badge + 'Toque para adicionar uma foto' hint when empty; tapping avatar-picker on web does not crash (ImagePicker is web-limited as expected, but emits deprecation warning for MediaTypeOptions); Planejamento empty state shows 'Nada planejado por aqui' with plan-create-cta button; after creating a goal, Planejamento shows '1 meta' + '0 concluídas' summary chips, Semana mode is default active, 'Hoje' section renders, day header reads exactly 'Domingo · 07 de junho' (capitalized weekday + day + month in Portuguese), and the per-day count badge shows '0/1' on the right. Deprecated API detected: expo-image-picker MediaTypeOptions is deprecated and should be replaced with MediaType.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "PUT /api/profile",
+        "issue": "Cannot clear avatar_base64. update_profile builds update dict via {k: v for k, v in payload.model_dump().items() if v is not None}, so sending {avatar_base64: null} is stripped and the previous base64 string remains in MongoDB. Frontend removeAvatar() therefore appears to succeed but the avatar persists after re-fetch / next session. Fix suggestion: use payload.model_dump(exclude_unset=True) so explicit None values are persisted while truly omitted fields are skipped. Reference: /app/backend/server.py:262-269.",
+        "priority": "HIGH"
+      }
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "Perfil > Remove foto (testID 'avatar-remove')",
+        "issue": "Tied to backend bug above: tapping 'Remover foto' calls api.updateProfile({ avatar_base64: null }) and shows a success toast, but a subsequent GET /api/profile still returns the previous base64 string. After fixing the backend (exclude_unset=True), this will start working automatically.",
+        "affected_testIDs": ["avatar-remove"]
+      }
+    ],
+    "design_issues": [],
+    "react_native_issues": [
+      {
+        "component": "expo-image-picker MediaTypeOptions",
+        "issue": "Console warning: `[expo-image-picker] ImagePicker.MediaTypeOptions have been deprecated. Use ImagePicker.MediaType or an array of ImagePicker.MediaType instead.` Reference: /app/frontend/app/(tabs)/perfil.tsx:124 (`mediaTypes: ImagePicker.MediaTypeOptions.Images`)."
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration3.py",
+    "/app/backend/tests/test_iteration2.py",
+    "/app/backend/tests/test_rocket_forward.py",
+    "/app/test_reports/pytest/iter3.xml"
+  ],
+  "action_items": [
+    "Fix PUT /api/profile to allow clearing nullable fields: change `update = {k: v for k, v in payload.model_dump().items() if v is not None}` to `update = payload.model_dump(exclude_unset=True)` (or whitelist avatar_base64 to allow None). Then re-run /app/backend/tests/test_iteration3.py::test_profile_clear_avatar_to_null.",
+    "Replace `mediaTypes: ImagePicker.MediaTypeOptions.Images` with `mediaTypes: [ImagePicker.MediaType.Images]` (or `'images'`) in /app/frontend/app/(tabs)/perfil.tsx:124 to remove deprecation warning."
+  ],
+  "critical_code_review_comments": [
+    "server.py update_profile drops None values, which makes nullable fields (avatar_base64) impossible to unset via PUT — confirmed by failing test_profile_clear_avatar_to_null. This same pattern is also a latent bug for any future Optional field that should be erasable.",
+    "Planejamento renderDay uses goals' string date comparison (a.date < b.date) — fine because all dates are ISO YYYY-MM-DD; time tiebreaker correctly falls back to '99' when undefined.",
+    "Avatar component supports both raw base64 and full data URI inputs and falls back to a rotated 'navigation' Feather glyph — robust default UX. No issue.",
+    "home.tsx Dashboard renders the Avatar inside a TouchableOpacity with testID='header-avatar' and onPress navigating to /perfil — verified working in mobile viewport.",
+    "perfil.tsx correctly requests media library permission, handles canAskAgain=false by opening device settings, sets uploadingPhoto and disables TouchableOpacity during upload. Cleanly handles ImagePicker cancellation."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration3.py (new)",
+    "/app/test_reports/pytest/iter3.xml (new)"
+  ],
+  "success_rate": {
+    "backend": "90% (9/10 — 1 bug: avatar cannot be cleared via PUT)",
+    "frontend": "100% of requested flows (Dashboard header-avatar, Perfil avatar-picker + hint, Planejamento sections + summary chips + Brazilian day header 'Domingo · 07 de junho' + 0/1 badge + Semana default + empty CTA)"
+  },
+  "seed_data_creation": "Tests POST /api/clear-data before/after each run. Final state cleared.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Backend external URL: https://rocket-forward.preview.emergentagent.com. Key testIDs verified in iter3: header-avatar (Dashboard), avatar-picker, avatar-remove (only when photo set), plan-create-cta, plan-mode-{hoje|semana|mes}. Brazilian day header format confirmed: 'Domingo · 07 de junho' (capitalized weekday from pt-BR locale, '·' separator, '07 de junho' from {day:'2-digit', month:'long'}). Default Planejamento mode is 'semana' showing Sun-Sat range (startOfWeek uses getDay()=0 for Sunday). One backend bug pending fix on PUT /api/profile null-clearing semantics — re-run test_iteration3.py after the fix.",
+  "rca_of_issue": "Root cause: server.py:264 builds the update dict by filtering out all None values from ProfileUpdate.model_dump(). Pydantic v2 model_dump() returns None for every field the client didn't set (because they're declared Optional[...] = None). Without distinguishing 'omitted' from 'explicitly null', the only safe filter was to drop None — but that also drops legitimate clear-to-null requests. Fix: payload.model_dump(exclude_unset=True) — Pydantic tracks which fields were actually provided in the request body; combined with no `if v is not None` filter, this preserves null as a valid update. Reproduction: PUT /api/profile {avatar_base64:'data:...'} then PUT /api/profile {avatar_base64:null} then GET /api/profile -> still returns the original base64 string."
+}

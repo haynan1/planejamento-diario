@@ -69,6 +69,7 @@ class Profile(BaseModel):
     theme: Literal["light", "dark"] = "dark"
     is_premium: bool = False
     notifications_enabled: bool = False
+    avatar_base64: Optional[str] = None
 
 
 class ProfileUpdate(BaseModel):
@@ -77,6 +78,7 @@ class ProfileUpdate(BaseModel):
     theme: Optional[Literal["light", "dark"]] = None
     is_premium: Optional[bool] = None
     notifications_enabled: Optional[bool] = None
+    avatar_base64: Optional[str] = None
 
 
 @api_router.get("/")

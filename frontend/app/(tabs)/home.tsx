@@ -21,6 +21,7 @@ import { getDailyPhrase, getGreeting } from "@/src/constants/goals";
 import { useToast } from "@/src/components/Toast";
 import { useAchievements } from "@/src/components/AchievementProvider";
 import { cancelGoalNotification } from "@/src/notifications";
+import Avatar from "@/src/components/Avatar";
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
@@ -117,9 +118,13 @@ export default function DashboardScreen() {
               Pronto para avançar hoje?
             </Text>
           </View>
-          <View style={[styles.avatar, { backgroundColor: colors.accent }]}>
-            <Feather name="navigation" size={20} color="#fff" style={{ transform: [{ rotate: "45deg" }] }} />
-          </View>
+          <TouchableOpacity
+            onPress={() => router.push("/perfil")}
+            activeOpacity={0.85}
+            testID="header-avatar"
+          >
+            <Avatar base64={profile?.avatar_base64} size={48} color={colors.accent} />
+          </TouchableOpacity>
         </View>
 
         {/* Progress card */}

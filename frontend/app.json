@@ -11,7 +11,8 @@
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
-        "NSUserNotificationsUsageDescription": "Receba lembretes das suas metas no horário certo"
+        "NSUserNotificationsUsageDescription": "Receba lembretes das suas metas no horário certo",
+        "NSPhotoLibraryUsageDescription": "Escolha uma foto para o seu perfil"
       }
     },
     "android": {

@@ -36,6 +36,7 @@ export interface Profile {
   theme: "light" | "dark";
   is_premium: boolean;
   notifications_enabled: boolean;
+  avatar_base64: string | null;
 }
 
 export interface Achievement {

@@ -9,15 +9,18 @@ import {
   TextInput,
   Linking,
   Platform,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import * as ImagePicker from "expo-image-picker";
 
 import { useTheme } from "@/src/theme/ThemeProvider";
 import { api, Profile, Stats, AchievementsResponse } from "@/src/api/client";
 import { useToast } from "@/src/components/Toast";
+import Avatar from "@/src/components/Avatar";
 import {
   getNotificationPermissionState,
   requestNotificationPermission,
@@ -35,6 +38,7 @@ export default function PerfilScreen() {
   const [nameInput, setNameInput] = useState("");
   const [notifGranted, setNotifGranted] = useState(false);
   const [notifCanAsk, setNotifCanAsk] = useState(true);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -99,6 +103,59 @@ export default function PerfilScreen() {
     }
   };
 
+  const pickAvatar = async () => {
+    if (uploadingPhoto) return;
+    try {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        if (!perm.canAskAgain) {
+          toast.show("Permita acesso às fotos nas configurações.", "info");
+          try {
+            await Linking.openSettings();
+          } catch {
+            // ignore
+          }
+        } else {
+          toast.show("Permissão negada para a galeria", "error");
+        }
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.6,
+        base64: true,
+      });
+      if (result.canceled || !result.assets?.length) return;
+      const asset = result.assets[0];
+      const b64 = asset.base64;
+      if (!b64) {
+        toast.show("Não foi possível ler a imagem", "error");
+        return;
+      }
+      setUploadingPhoto(true);
+      const dataUri = `data:image/jpeg;base64,${b64}`;
+      const updated = await api.updateProfile({ avatar_base64: dataUri });
+      setProfile(updated);
+      toast.show("Foto de perfil atualizada", "success");
+    } catch {
+      toast.show("Erro ao atualizar foto", "error");
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+
+  const removeAvatar = async () => {
+    try {
+      const updated = await api.updateProfile({ avatar_base64: null });
+      setProfile(updated);
+      toast.show("Foto removida", "success");
+    } catch {
+      toast.show("Erro ao remover foto", "error");
+    }
+  };
+
   const toggleNotifications = async (next: boolean) => {
     if (!next) {
       await api.updateProfile({ notifications_enabled: false });
@@ -150,8 +207,40 @@ export default function PerfilScreen() {
           end={{ x: 1, y: 1 }}
           style={[styles.heroCard, { borderColor: colors.border }]}
         >
-          <View style={[styles.avatar, { backgroundColor: colors.accent }]}>
-            <Feather name="navigation" size={28} color="#fff" style={{ transform: [{ rotate: "45deg" }] }} />
+          <View style={styles.avatarWrap}>
+            <TouchableOpacity
+              onPress={pickAvatar}
+              activeOpacity={0.85}
+              disabled={uploadingPhoto}
+              testID="avatar-picker"
+            >
+              <View style={[styles.avatarRing, { borderColor: colors.accent }]}>
+                <Avatar base64={profile?.avatar_base64} size={92} color={colors.accent} />
+                {uploadingPhoto ? (
+                  <View style={styles.avatarLoading}>
+                    <ActivityIndicator color="#fff" />
+                  </View>
+                ) : null}
+              </View>
+              <View style={[styles.cameraBadge, { backgroundColor: colors.accent, borderColor: colors.surface }]}>
+                <Feather name="camera" size={14} color="#fff" />
+              </View>
+            </TouchableOpacity>
+            {profile?.avatar_base64 ? (
+              <TouchableOpacity
+                onPress={removeAvatar}
+                style={styles.removePhoto}
+                testID="avatar-remove"
+              >
+                <Text style={[styles.removePhotoText, { color: colors.textMuted }]}>
+                  Remover foto
+                </Text>
+              </TouchableOpacity>
+            ) : (
+              <Text style={[styles.removePhotoText, { color: colors.textMuted }]}>
+                Toque para adicionar uma foto
+              </Text>
+            )}
           </View>
           {editingName ? (
             <View style={styles.editRow}>
@@ -402,6 +491,36 @@ export default function PerfilScreen() {
 const styles = StyleSheet.create({
   scroll: { padding: 24, paddingBottom: 48, gap: 16 },
   heroCard: { padding: 24, borderRadius: 24, borderWidth: 1, alignItems: "center", gap: 10 },
+  avatarWrap: { alignItems: "center", gap: 8 },
+  avatarRing: {
+    width: 104,
+    height: 104,
+    borderRadius: 52,
+    borderWidth: 2,
+    padding: 4,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatarLoading: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.4)",
+    borderRadius: 50,
+  },
+  cameraBadge: {
+    position: "absolute",
+    bottom: 4,
+    right: 4,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 3,
+  },
+  removePhoto: { marginTop: 2 },
+  removePhotoText: { fontSize: 11, fontWeight: "600" },
   avatar: { width: 76, height: 76, borderRadius: 38, alignItems: "center", justifyContent: "center" },
   nameRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 8 },
   name: { fontSize: 22, fontWeight: "800", letterSpacing: -0.3 },
