@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { Priority, Status, Category, CATEGORIES, PRIORITIES } from "@/src/constants/goals";
+import { addLocalDays, formatLocalISODate, parseLocalISODate, todayLocalISO } from "@/src/utils/date";
 
 const GOALS_KEY = "rocket_forward:goals";
 const PROFILE_KEY = "rocket_forward:profile";
@@ -222,20 +223,13 @@ const achievementDefinitions: AchievementDefinition[] = [
   })),
 ];
 
-const todayISO = () => new Date().toISOString().slice(0, 10);
-const addDays = (date: Date, days: number) => {
-  const out = new Date(date);
-  out.setDate(out.getDate() + days);
-  return out;
-};
-const isoDate = (date: Date) => date.toISOString().slice(0, 10);
 const uid = () =>
   `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 
 const lastYearRange = () => {
-  const today = todayISO();
+  const today = todayLocalISO();
   return {
-    date_from: isoDate(addDays(new Date(`${today}T00:00:00`), -365)),
+    date_from: formatLocalISODate(addLocalDays(parseLocalISODate(today), -365)),
     date_to: today,
   };
 };
@@ -249,19 +243,19 @@ function parseOccurrenceId(id: string) {
 }
 
 function getRecurringRange(filters: GoalFilters) {
-  const today = todayISO();
+  const today = todayLocalISO();
   if (filters.date_eq) return { from: filters.date_eq, to: filters.date_eq };
   return {
     from: filters.date_from ?? today,
-    to: filters.date_to ?? isoDate(addDays(new Date(`${today}T00:00:00`), RECURRING_LOOKAHEAD_DAYS)),
+    to: filters.date_to ?? formatLocalISODate(addLocalDays(parseLocalISODate(today), RECURRING_LOOKAHEAD_DAYS)),
   };
 }
 
 function recurrenceMatchesDate(recurrence: GoalRecurrence, date: string) {
   if (date < recurrence.start_date) return false;
 
-  const current = new Date(`${date}T00:00:00`);
-  const start = new Date(`${recurrence.start_date}T00:00:00`);
+  const current = parseLocalISODate(date);
+  const start = parseLocalISODate(recurrence.start_date);
   const daysSinceStart = Math.round((current.getTime() - start.getTime()) / 86400000);
   if (daysSinceStart < 0) return false;
   if (recurrence.type === "count" && daysSinceStart >= (recurrence.days ?? 0)) return false;
@@ -276,11 +270,11 @@ function expandRecurringGoal(goal: Goal, from: string, to: string) {
   if (!goal.recurrence) return [goal];
 
   const items: Goal[] = [];
-  let cursor = new Date(`${from}T00:00:00`);
-  const end = new Date(`${to}T00:00:00`);
+  let cursor = parseLocalISODate(from);
+  const end = parseLocalISODate(to);
 
   while (cursor <= end) {
-    const date = isoDate(cursor);
+    const date = formatLocalISODate(cursor);
     if (recurrenceMatchesDate(goal.recurrence, date)) {
       const override = goal.recurrence_overrides?.[date];
       items.push({
@@ -292,7 +286,7 @@ function expandRecurringGoal(goal: Goal, from: string, to: string) {
         completed_at: override?.completed_at ?? null,
       });
     }
-    cursor = addDays(cursor, 1);
+    cursor = addLocalDays(cursor, 1);
   }
 
   return items;
@@ -362,8 +356,8 @@ function bestStreak(dates: Set<string>) {
   let best = 1;
   let current = 1;
   for (let i = 1; i < sorted.length; i += 1) {
-    const prev = new Date(`${sorted[i - 1]}T00:00:00`);
-    const next = new Date(`${sorted[i]}T00:00:00`);
+    const prev = parseLocalISODate(sorted[i - 1]);
+    const next = parseLocalISODate(sorted[i]);
     const diff = Math.round((next.getTime() - prev.getTime()) / 86400000);
     if (diff === 1) {
       current += 1;
@@ -376,11 +370,11 @@ function bestStreak(dates: Set<string>) {
 }
 
 function currentStreak(dates: Set<string>) {
-  let cursor = new Date(`${todayISO()}T00:00:00`);
+  let cursor = parseLocalISODate(todayLocalISO());
   let count = 0;
-  while (dates.has(isoDate(cursor))) {
+  while (dates.has(formatLocalISODate(cursor))) {
     count += 1;
-    cursor = addDays(cursor, -1);
+    cursor = addLocalDays(cursor, -1);
   }
   return count;
 }
@@ -455,16 +449,16 @@ function hydrateAchievements(
 }
 
 async function calculateStats(goals: Goal[]): Promise<Stats> {
-  const today = todayISO();
+  const today = todayLocalISO();
   const completed = goals.filter((g) => g.status === "concluida");
   const completedToday = goals.filter((g) => g.date === today && g.status === "concluida").length;
   const pendingToday = goals.filter((g) => g.date === today && g.status !== "concluida").length;
   const totalToday = completedToday + pendingToday;
   const dates = productiveDates(goals);
-  const now = new Date(`${today}T00:00:00`);
+  const now = parseLocalISODate(today);
 
   const weekly_evolution = Array.from({ length: 7 }, (_, index) => {
-    const date = isoDate(addDays(now, index - 6));
+    const date = formatLocalISODate(addLocalDays(now, index - 6));
     return {
       date,
       count: goals.filter((g) => g.date === date && g.status === "concluida").length,
@@ -642,9 +636,9 @@ export const api = {
 
   monthlyReport: async (): Promise<MonthlyReport> => {
     const goals = await getGoals();
-    const today = new Date(`${todayISO()}T00:00:00`);
-    const start = isoDate(addDays(today, -29));
-    const expandedGoals = expandGoals(goals, { date_from: start, date_to: isoDate(today) });
+    const today = parseLocalISODate(todayLocalISO());
+    const start = formatLocalISODate(addLocalDays(today, -29));
+    const expandedGoals = expandGoals(goals, { date_from: start, date_to: formatLocalISODate(today) });
     const completed = expandedGoals.filter((g) => g.status === "concluida" && g.date >= start);
     const by_category: Record<string, number> = {};
     const by_priority: Record<string, number> = {};
@@ -655,7 +649,7 @@ export const api = {
     }
 
     const evolution = Array.from({ length: 30 }, (_, index) => {
-      const date = isoDate(addDays(today, index - 29));
+      const date = formatLocalISODate(addLocalDays(today, index - 29));
       return {
         date,
         count: completed.filter((g) => g.date === date).length,

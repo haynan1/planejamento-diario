@@ -1,3 +1,5 @@
+import { todayLocalISO } from "@/src/utils/date";
+
 export type Priority = "baixa" | "media" | "alta";
 export type Status = "pendente" | "em_andamento" | "concluida";
 export type Category =
@@ -56,7 +58,7 @@ export const MOTIVATIONAL_PHRASES: string[] = [
 ];
 
 export const getDailyPhrase = (): string => {
-  const dayKey = new Date().toISOString().slice(0, 10);
+  const dayKey = todayLocalISO();
   let hash = 0;
   for (let i = 0; i < dayKey.length; i++) hash = (hash * 31 + dayKey.charCodeAt(i)) | 0;
   const idx = Math.abs(hash) % MOTIVATIONAL_PHRASES.length;

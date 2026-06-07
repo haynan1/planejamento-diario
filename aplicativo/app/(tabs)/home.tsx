@@ -22,8 +22,7 @@ import { useToast } from "@/src/components/Toast";
 import { useAchievements } from "@/src/components/AchievementProvider";
 import { cancelGoalNotification } from "@/src/notifications";
 import Avatar from "@/src/components/Avatar";
-
-const todayISO = () => new Date().toISOString().slice(0, 10);
+import { todayLocalISO } from "@/src/utils/date";
 
 export default function DashboardScreen() {
   const { colors, mode } = useTheme();
@@ -39,7 +38,7 @@ export default function DashboardScreen() {
   const load = useCallback(async () => {
     try {
       const [g, s, p] = await Promise.all([
-        api.listGoals({ date_eq: todayISO() }),
+        api.listGoals({ date_eq: todayLocalISO() }),
         api.getStats(),
         api.getProfile(),
       ]);

@@ -8,9 +8,10 @@ import { api, Stats } from "@/src/api/client";
 import StatCard from "@/src/components/StatCard";
 import { useToast } from "@/src/components/Toast";
 import { formatMetricPercent } from "@/src/utils/format";
+import { parseLocalISODate } from "@/src/utils/date";
 
 const dayLabel = (iso: string) => {
-  const d = new Date(iso + "T00:00:00");
+  const d = parseLocalISODate(iso);
   return ["D", "S", "T", "Q", "Q", "S", "S"][d.getDay()];
 };
 

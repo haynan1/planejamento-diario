@@ -1,9 +1,12 @@
 import { Platform } from "react-native";
 import * as Notifications from "expo-notifications";
 import { storage } from "@/src/utils/storage";
-import { Goal } from "@/src/api/client";
+import { Goal, GoalRecurrence } from "@/src/api/client";
+import { addLocalDays, formatLocalISODate, parseLocalISODate, todayLocalISO } from "@/src/utils/date";
 
 const STORAGE_KEY = "rf_goal_notif_ids";
+const RECURRENCE_ID_SEPARATOR = "::";
+const NOTIFICATION_LOOKAHEAD_DAYS = 366;
 
 type NotifMap = Record<string, string>; // goalId -> notificationId
 
@@ -61,13 +64,57 @@ export async function requestNotificationPermission(): Promise<PermissionState> 
 }
 
 function buildTriggerDate(goal: Goal): Date | null {
-  if (!goal.date) return null;
-  const dateStr = goal.time ? `${goal.date}T${goal.time}:00` : `${goal.date}T09:00:00`;
-  const d = new Date(dateStr);
+  return buildTriggerDateForGoalDate(goal, goal.date);
+}
+
+function buildTriggerDateForGoalDate(goal: Goal, date: string): Date | null {
+  if (!date) return null;
+  const [hours, minutes] = (goal.time ?? "09:00").split(":").map(Number);
+  const d = parseLocalISODate(date);
+  d.setHours(Number.isFinite(hours) ? hours : 9, Number.isFinite(minutes) ? minutes : 0, 0, 0);
   if (isNaN(d.getTime())) return null;
-  // Only schedule if in the future (at least 30 seconds ahead)
   if (d.getTime() < Date.now() + 30 * 1000) return null;
   return d;
+}
+
+function notificationKey(goalId: string) {
+  return goalId.split(RECURRENCE_ID_SEPARATOR)[0];
+}
+
+function recurrenceMatchesDate(recurrence: GoalRecurrence, date: string) {
+  if (date < recurrence.start_date) return false;
+
+  const current = parseLocalISODate(date);
+  const start = parseLocalISODate(recurrence.start_date);
+  const daysSinceStart = Math.round((current.getTime() - start.getTime()) / 86400000);
+  if (daysSinceStart < 0) return false;
+  if (recurrence.type === "count" && daysSinceStart >= (recurrence.days ?? 0)) return false;
+
+  const day = current.getDay();
+  if (recurrence.type === "weekdays") return day >= 1 && day <= 5;
+  if (recurrence.type === "weekends") return day === 0 || day === 6;
+  return true;
+}
+
+function buildNextTriggerDate(goal: Goal): Date | null {
+  if (!goal.recurrence) return buildTriggerDate(goal);
+  if (goal.status === "concluida" && !goal.series_id) return null;
+
+  let cursor = parseLocalISODate(
+    [todayLocalISO(), goal.date, goal.recurrence.start_date].sort().at(-1) ?? todayLocalISO(),
+  );
+
+  for (let i = 0; i <= NOTIFICATION_LOOKAHEAD_DAYS; i += 1) {
+    const date = formatLocalISODate(cursor);
+    const override = goal.recurrence_overrides?.[date];
+    if (recurrenceMatchesDate(goal.recurrence, date) && override?.status !== "concluida") {
+      const trigger = buildTriggerDateForGoalDate(goal, date);
+      if (trigger) return trigger;
+    }
+    cursor = addLocalDays(cursor, 1);
+  }
+
+  return null;
 }
 
 export async function scheduleGoalNotification(goal: Goal): Promise<string | null> {
@@ -77,16 +124,17 @@ export async function scheduleGoalNotification(goal: Goal): Promise<string | nul
 
   const map = await getMap();
   // Cancel previous, if any
-  if (map[goal.id]) {
+  const key = notificationKey(goal.series_id ?? goal.id);
+  if (map[key]) {
     try {
-      await Notifications.cancelScheduledNotificationAsync(map[goal.id]);
+      await Notifications.cancelScheduledNotificationAsync(map[key]);
     } catch {
       // ignore
     }
   }
-  const trigger = buildTriggerDate(goal);
+  const trigger = buildNextTriggerDate(goal);
   if (!trigger || goal.status === "concluida") {
-    delete map[goal.id];
+    delete map[key];
     await setMap(map);
     return null;
   }
@@ -95,14 +143,14 @@ export async function scheduleGoalNotification(goal: Goal): Promise<string | nul
       content: {
         title: "Hora de avançar 🚀",
         body: goal.title,
-        data: { goalId: goal.id },
+        data: { goalId: key },
       },
       trigger: {
         type: Notifications.SchedulableTriggerInputTypes.DATE,
         date: trigger,
       },
     });
-    map[goal.id] = id;
+    map[key] = id;
     await setMap(map);
     return id;
   } catch {
@@ -113,13 +161,15 @@ export async function scheduleGoalNotification(goal: Goal): Promise<string | nul
 export async function cancelGoalNotification(goalId: string): Promise<void> {
   if (Platform.OS === "web") return;
   const map = await getMap();
-  const id = map[goalId];
+  const key = notificationKey(goalId);
+  const id = map[key] ?? map[goalId];
   if (id) {
     try {
       await Notifications.cancelScheduledNotificationAsync(id);
     } catch {
       // ignore
     }
+    delete map[key];
     delete map[goalId];
     await setMap(map);
   }

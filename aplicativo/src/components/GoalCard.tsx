@@ -9,6 +9,7 @@ import {
   STATUSES,
   Status,
 } from "@/src/constants/goals";
+import { parseLocalISODate } from "@/src/utils/date";
 
 interface Props {
   goal: Goal;
@@ -21,7 +22,7 @@ interface Props {
 
 const formatDate = (iso: string) => {
   try {
-    const d = new Date(iso + "T00:00:00");
+    const d = parseLocalISODate(iso);
     return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
   } catch {
     return iso;

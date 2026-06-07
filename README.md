@@ -2,7 +2,9 @@
 
 Aplicativo mobile feito com Expo e React Native para organizar metas diárias, acompanhar progresso, histórico, conquistas, relatórios e perfil.
 
-Este projeto está preparado para gerar um APK instalável no Android. Ele não precisa de Python, backend, MongoDB, Docker ou Android Studio para funcionar no celular. Os dados do usuário ficam salvos no próprio aparelho com AsyncStorage.
+Este projeto está preparado para Android e iPhone usando Expo/EAS Build. No Android, você pode gerar APK para instalação direta ou AAB para Play Store. No iPhone, você pode gerar builds iOS para simulador, teste interno/TestFlight ou produção/App Store.
+
+Ele não precisa de Python, backend, MongoDB, Docker, Android Studio ou Xcode para o fluxo principal com EAS Build na nuvem. Os dados do usuário ficam salvos no próprio aparelho com AsyncStorage.
 
 ## Importante: Use Git Bash
 
@@ -31,7 +33,7 @@ planejamento-diario/
       theme/               Tema visual
       utils/               Utilitários de armazenamento e fontes
     app.json               Configuração do aplicativo
-    eas.json               Configuração para gerar APK/AAB
+    eas.json               Configuração para gerar builds Android e iOS
     package.json           Dependências e comandos npm
     instalar-dependencias.sh
     rodar-web.sh
@@ -46,9 +48,10 @@ Instale apenas:
 - Node.js
 - npm
 - Git Bash
-- Uma conta Expo, para gerar o APK pelo EAS Build
+- Uma conta Expo, para gerar builds pelo EAS Build
+- Uma conta Apple Developer, se for gerar build iOS para iPhone físico/TestFlight/App Store
 
-Você não precisa instalar Python, venv, MongoDB, Docker ou Android Studio.
+Você não precisa instalar Python, venv, MongoDB, Docker, Android Studio ou Xcode para gerar builds pela nuvem do EAS.
 
 ## Instalar as Dependências
 
@@ -85,7 +88,7 @@ http://localhost:8081
 
 ## Testar no Celular com Expo Go
 
-Este modo é bom para testar antes de gerar o APK.
+Este modo é bom para testar antes de gerar uma build instalável.
 
 ```bash
 cd aplicativo
@@ -94,7 +97,7 @@ npm start
 
 Depois:
 
-1. Instale o app Expo Go no Android.
+1. Instale o app Expo Go no Android ou iPhone.
 2. Leia o QR Code que aparecer no terminal ou navegador.
 3. O aplicativo será aberto no celular em modo de desenvolvimento.
 
@@ -140,7 +143,41 @@ Depois que o APK estiver pronto:
 
 Você pode enviar o APK para o celular por cabo USB, WhatsApp, Telegram, Google Drive, OneDrive ou baixando direto pelo navegador do próprio celular.
 
-Importante: APK é para Android. Para iPhone, o processo é outro e envolve build iOS/TestFlight/App Store.
+Importante: APK é apenas para Android. Para iPhone, use uma das opções de build iOS abaixo.
+
+## Gerar Build para iPhone
+
+No Windows não é possível compilar iOS localmente com Xcode, mas este projeto está configurado para usar o EAS Build na nuvem.
+
+Antes de gerar pela primeira vez, entre na sua conta Expo:
+
+```bash
+cd aplicativo
+npx eas-cli@latest login
+```
+
+Para gerar uma build de teste para iPhone físico:
+
+```bash
+cd aplicativo
+npm run build:ios:preview
+```
+
+Para gerar uma build para simulador iOS:
+
+```bash
+cd aplicativo
+npm run build:ios:simulator
+```
+
+Para gerar uma build de produção para App Store/TestFlight:
+
+```bash
+cd aplicativo
+npm run build:ios:production
+```
+
+Observação: para instalar em iPhone físico, TestFlight ou App Store, a Apple exige conta Apple Developer e configuração de credenciais/certificados durante o fluxo do EAS.
 
 ## Atualizar o App no Celular
 
@@ -170,6 +207,15 @@ cd aplicativo
 npm run build:android:aab
 ```
 
+## Gerar Arquivo para App Store/TestFlight
+
+Para publicar ou testar via TestFlight, gere uma build iOS de produção:
+
+```bash
+cd aplicativo
+npm run build:ios:production
+```
+
 ## Comandos Úteis
 
 Todos os comandos abaixo devem ser executados dentro da pasta `aplicativo`.
@@ -182,6 +228,9 @@ npm run lint              # valida o projeto
 npm run gerar:apk         # gera APK usando o script Bash
 npm run build:android:apk # gera APK pelo EAS
 npm run build:android:aab # gera AAB para Play Store
+npm run build:ios:simulator  # gera build iOS para simulador
+npm run build:ios:preview    # gera build iOS para teste em iPhone
+npm run build:ios:production # gera build iOS para TestFlight/App Store
 ```
 
 ## Dados Salvos no Celular
@@ -196,11 +245,13 @@ O aplicativo salva localmente:
 - relatórios
 - status premium local
 
-Se o aplicativo for desinstalado, esses dados podem ser apagados pelo Android.
+Se o aplicativo for desinstalado, esses dados podem ser apagados pelo Android ou iOS.
 
 ## Configuração Atual do App
 
 - Nome exibido: `Planejamento Diário`
 - Identificador Android: `com.haynan.planejamentodiario`
+- Identificador iOS: `com.haynan.planejamentodiario`
 - Tipo de build para instalação direta: APK
+- Tipo de build para iPhone: iOS via EAS Build
 - Pasta principal do app: `aplicativo`

@@ -9,7 +9,9 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true,
+      "bundleIdentifier": "com.haynan.planejamentodiario",
+      "buildNumber": "1",
+      "supportsTablet": false,
       "infoPlist": {
         "NSUserNotificationsUsageDescription": "Receba lembretes das suas metas no horário certo",
         "NSPhotoLibraryUsageDescription": "Escolha uma foto para o seu perfil"
@@ -19,7 +21,7 @@
       "package": "com.haynan.planejamentodiario",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#000"
+        "backgroundColor": "#000000"
       },
       "edgeToEdgeEnabled": true,
       "permissions": [
@@ -40,7 +42,7 @@
           "image": "./assets/images/splash-image.png",
           "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#000"
+          "backgroundColor": "#000000"
         }
       ],
       "expo-font"

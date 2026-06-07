@@ -17,10 +17,11 @@ import GoalCard from "@/src/components/GoalCard";
 import { useToast } from "@/src/components/Toast";
 import { useAchievements } from "@/src/components/AchievementProvider";
 import { cancelGoalNotification } from "@/src/notifications";
+import { formatLocalISODate, parseLocalISODate } from "@/src/utils/date";
 
 type Mode = "hoje" | "semana" | "mes";
 
-const isoDate = (d: Date) => d.toISOString().slice(0, 10);
+const isoDate = formatLocalISODate;
 
 const startOfWeek = (d: Date) => {
   const out = new Date(d);
@@ -43,7 +44,7 @@ const endOfMonth = (d: Date) => new Date(d.getFullYear(), d.getMonth() + 1, 0);
 const capitalize = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 
 const formatLongDate = (iso: string) => {
-  const d = new Date(iso + "T00:00:00");
+  const d = parseLocalISODate(iso);
   const weekday = capitalize(d.toLocaleDateString("pt-BR", { weekday: "long" }));
   const dayMonth = d.toLocaleDateString("pt-BR", { day: "2-digit", month: "long" });
   return `${weekday} · ${dayMonth}`;

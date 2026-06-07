@@ -14,7 +14,7 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 
 import { useTheme } from "@/src/theme/ThemeProvider";
-import { api, FreeLimitError, RecurrenceType } from "@/src/api/client";
+import { api, FreeLimitError, Goal, RecurrenceType } from "@/src/api/client";
 import PrimaryButton from "@/src/components/PrimaryButton";
 import {
   CATEGORIES,
@@ -28,17 +28,14 @@ import { useToast } from "@/src/components/Toast";
 import { useAchievements } from "@/src/components/AchievementProvider";
 import { scheduleGoalNotification, cancelGoalNotification } from "@/src/notifications";
 import { formatGoalTimeInput, normalizeGoalTime } from "@/src/utils/time";
-
-const todayISO = () => new Date().toISOString().slice(0, 10);
+import { addLocalDays, formatLocalISODate, parseLocalISODate, todayLocalISO } from "@/src/utils/date";
 
 const addDays = (iso: string, n: number) => {
-  const d = new Date(iso + "T00:00:00");
-  d.setDate(d.getDate() + n);
-  return d.toISOString().slice(0, 10);
+  return formatLocalISODate(addLocalDays(parseLocalISODate(iso), n));
 };
 
 const labelDate = (iso: string) => {
-  const d = new Date(iso + "T00:00:00");
+  const d = parseLocalISODate(iso);
   return d.toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit", month: "short" });
 };
 
@@ -62,7 +59,7 @@ export default function CriarMetaScreen() {
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [date, setDate] = useState(todayISO());
+  const [date, setDate] = useState(todayLocalISO());
   const [time, setTime] = useState<string>("");
   const [recurrence, setRecurrence] = useState<RecurrenceOption>("none");
   const [recurrenceDays, setRecurrenceDays] = useState("7");
@@ -92,7 +89,7 @@ export default function CriarMetaScreen() {
   }, [editingId]);
 
   const dateOptions = useMemo(() => {
-    const today = todayISO();
+    const today = todayLocalISO();
     return [
       { key: today, label: "Hoje" },
       { key: addDays(today, 1), label: "Amanhã" },
@@ -127,24 +124,26 @@ export default function CriarMetaScreen() {
 
     setSaving(true);
     try {
-      const payload = {
+      const payload: Omit<Goal, "id" | "created_at" | "completed_at"> = {
         title: title.trim(),
         description: description.trim(),
         date,
         time: normalizedTime,
         recurrence: recurrencePayload,
-        recurrence_overrides: {},
         priority,
         category,
         status,
       };
+      if (!editingId) {
+        payload.recurrence_overrides = {};
+      }
       let savedGoal;
       if (editingId) {
-        savedGoal = await api.updateGoal(editingId, payload as any);
+        savedGoal = await api.updateGoal(editingId, payload);
         await cancelGoalNotification(editingId);
         toast.show("Meta atualizada", "success");
       } else {
-        savedGoal = await api.createGoal(payload as any);
+        savedGoal = await api.createGoal(payload);
         toast.show("Meta criada! Hora de decolar.", "success");
       }
       // Schedule notification (no-op if permission/premium not set)
