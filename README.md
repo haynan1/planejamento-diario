@@ -1,62 +1,94 @@
-# Planejamento Diario
+# Planejamento Diário
 
-Aplicativo mobile feito com Expo/React Native para organizar metas diarias, acompanhar progresso, historico, conquistas, relatorios e perfil.
+Aplicativo mobile feito com Expo e React Native para organizar metas diárias, acompanhar progresso, histórico, conquistas, relatórios e perfil.
 
-O projeto agora funciona sem backend Python, sem MongoDB e sem servidor externo. Os dados ficam salvos no proprio celular usando AsyncStorage.
+Este projeto está preparado para gerar um APK instalável no Android. Ele não precisa de Python, backend, MongoDB, Docker ou Android Studio para funcionar no celular. Os dados do usuário ficam salvos no próprio aparelho com AsyncStorage.
 
-## O que precisa instalar no PC
+## Importante: Use Git Bash
+
+As instruções deste projeto foram preparadas para executar pelo **Git Bash**, não pelo PowerShell.
+
+No Windows:
+
+1. Clique com o botão direito dentro da pasta `planejamento-diario`.
+2. Escolha `Open Git Bash here` ou `Abrir Git Bash aqui`.
+3. Rode os comandos exatamente como aparecem neste README.
+
+## Estrutura de Pastas
+
+```text
+planejamento-diario/
+  aplicativo/              Projeto Expo/React Native
+    app/                   Telas e rotas do aplicativo
+    assets/                Ícones, splash screen e imagens
+    constants/             Constantes usadas pelo app
+    scripts/               Scripts auxiliares do template Expo
+    src/
+      api/                 Camada local de dados do app
+      components/          Componentes reutilizáveis
+      constants/           Tipos, categorias e frases
+      notifications/       Notificações locais
+      theme/               Tema visual
+      utils/               Utilitários de armazenamento e fontes
+    app.json               Configuração do aplicativo
+    eas.json               Configuração para gerar APK/AAB
+    package.json           Dependências e comandos npm
+    instalar-dependencias.sh
+    rodar-web.sh
+    gerar-apk.sh
+  README.md                Instruções principais
+```
+
+## Requisitos no PC
+
+Instale apenas:
 
 - Node.js
 - npm
-- Uma conta Expo, apenas para gerar APK com EAS Build
+- Git Bash
+- Uma conta Expo, para gerar o APK pelo EAS Build
 
-Nao precisa instalar Python, venv, MongoDB, Docker ou Android Studio para gerar o APK pelo EAS.
+Você não precisa instalar Python, venv, MongoDB, Docker ou Android Studio.
 
-## Estrutura
+## Instalar as Dependências
 
-```text
-frontend/
-  app/                 Telas e rotas do app
-  src/api/client.ts    Camada local de dados
-  src/components/      Componentes reutilizaveis
-  src/constants/       Tipos, categorias e frases
-  src/theme/           Tema visual
-  assets/              Icones, splash e imagens
-```
+No Git Bash, rode:
 
-## Instalar dependencias
-
-```powershell
-cd frontend
-.\setup-frontend.ps1
+```bash
+cd aplicativo
+./instalar-dependencias.sh
 ```
 
 Ou manualmente:
 
-```powershell
-cd frontend
+```bash
+cd aplicativo
 npm install
 ```
 
-As dependencias ficam dentro de `frontend\node_modules`.
+As dependências ficam dentro de `aplicativo/node_modules`.
 
-## Rodar no navegador para ver no PC
+## Ver o App no PC
 
-```powershell
-cd frontend
-.\run-web.ps1
+Para abrir no navegador:
+
+```bash
+cd aplicativo
+./rodar-web.sh
 ```
 
-Abra:
+Depois acesse:
 
 ```text
 http://localhost:8081
 ```
 
-## Rodar no celular com Expo Go
+## Testar no Celular com Expo Go
 
-```powershell
-cd frontend
+Este modo é bom para testar antes de gerar o APK.
+
+```bash
+cd aplicativo
 npm start
 ```
 
@@ -64,20 +96,20 @@ Depois:
 
 1. Instale o app Expo Go no Android.
 2. Leia o QR Code que aparecer no terminal ou navegador.
-3. O app abre no celular em modo desenvolvimento.
+3. O aplicativo será aberto no celular em modo de desenvolvimento.
 
-## Gerar APK instalavel no Android
+## Gerar o APK para Instalar no Android
 
-O projeto ja inclui `frontend/eas.json` configurado para gerar APK no perfil `preview`.
+O APK é o arquivo instalável para Android.
 
 Antes de gerar pela primeira vez, entre na sua conta Expo:
 
-```powershell
-cd frontend
+```bash
+cd aplicativo
 npx eas-cli@latest login
 ```
 
-Se ainda nao tiver conta, crie uma gratuitamente em:
+Se ainda não tiver conta, crie uma gratuitamente:
 
 ```text
 https://expo.dev/signup
@@ -85,84 +117,90 @@ https://expo.dev/signup
 
 Agora gere o APK:
 
-```powershell
-cd frontend
-.\build-apk.ps1
+```bash
+cd aplicativo
+./gerar-apk.sh
 ```
 
-Na primeira vez, o Expo/EAS pode perguntar se voce quer configurar o projeto. Pode responder `Y` para ele criar a configuracao do projeto na sua conta Expo.
+Na primeira execução, o Expo/EAS pode perguntar se você quer configurar o projeto na sua conta. Responda `Y`.
 
-Ao final do build, o terminal mostra um link para baixar o arquivo `.apk`.
+Ao final, o terminal vai mostrar um link do build. Abra esse link para baixar o arquivo `.apk`.
 
-## Instalar o APK no celular Android
+## Instalar o APK no Celular
 
-Para instalar no celular:
+Depois que o APK estiver pronto:
 
 1. Abra o link do build no navegador.
 2. Baixe o arquivo `.apk`.
-3. Envie o APK para o celular, se voce baixou no PC.
+3. Se você baixou no PC, envie o APK para o celular.
 4. No Android, abra o arquivo `.apk`.
-5. Se aparecer bloqueio de seguranca, toque em `Configurar` ou `Permitir desta fonte`.
-6. Volte para o instalador e toque em `Instalar`.
-7. Depois de instalar, abra o app `Planejamento Diario`.
+5. Se aparecer bloqueio de segurança, toque em `Configurar` ou `Permitir desta fonte`.
+6. Volte para a instalação e toque em `Instalar`.
+7. Depois de instalar, abra o app `Planejamento Diário`.
 
-Voce pode passar o APK para o celular por cabo USB, WhatsApp, Telegram, Google Drive, OneDrive ou baixando direto pelo navegador do celular.
+Você pode enviar o APK para o celular por cabo USB, WhatsApp, Telegram, Google Drive, OneDrive ou baixando direto pelo navegador do próprio celular.
 
-Importante: APK e para Android. Para iPhone, o processo e diferente e precisa de build iOS/TestFlight/App Store.
+Importante: APK é para Android. Para iPhone, o processo é outro e envolve build iOS/TestFlight/App Store.
 
-## Atualizar o app no celular
+## Atualizar o App no Celular
 
-Quando fizer mudancas no app:
+Quando fizer mudanças no app, gere outro APK:
 
-```powershell
-cd frontend
-.\build-apk.ps1
+```bash
+cd aplicativo
+./gerar-apk.sh
 ```
 
-Depois baixe o novo APK e instale por cima do anterior. O Android normalmente atualiza o app mantendo os dados locais, desde que o package continue igual:
+Depois baixe o novo APK e instale por cima do anterior.
+
+O Android normalmente mantém os dados locais quando você instala uma atualização por cima, desde que o identificador do app continue igual:
 
 ```text
 com.haynan.planejamentodiario
 ```
 
-Se voce desinstalar o app antes de instalar de novo, os dados locais podem ser apagados.
+Se você desinstalar o app antes de instalar novamente, os dados locais podem ser apagados.
 
-## Gerar arquivo para Play Store
+## Gerar Arquivo para Play Store
 
 Para publicar na Play Store, gere um Android App Bundle:
 
-```powershell
-cd frontend
+```bash
+cd aplicativo
 npm run build:android:aab
 ```
 
-## Scripts uteis
+## Comandos Úteis
 
-```powershell
+Todos os comandos abaixo devem ser executados dentro da pasta `aplicativo`.
+
+```bash
 npm start                 # abre o Expo
 npm run web               # roda no navegador
-npm run android           # tenta abrir em Android/emulador
-npm run lint              # valida lint do Expo
-npm run build:android:apk # gera APK via EAS
-npm run build:android:aab # gera AAB via EAS
+npm run rodar:web         # roda no navegador usando o script Bash
+npm run lint              # valida o projeto
+npm run gerar:apk         # gera APK usando o script Bash
+npm run build:android:apk # gera APK pelo EAS
+npm run build:android:aab # gera AAB para Play Store
 ```
 
-## Dados do app
+## Dados Salvos no Celular
 
-O app salva localmente:
+O aplicativo salva localmente:
 
 - metas
 - perfil
 - tema
 - avatar
 - conquistas
-- relatorios
+- relatórios
 - status premium local
 
-Se o app for desinstalado, os dados locais podem ser apagados pelo Android.
+Se o aplicativo for desinstalado, esses dados podem ser apagados pelo Android.
 
-## Observacoes
+## Configuração Atual do App
 
-- O package Android esta configurado como `com.haynan.planejamentodiario`.
-- O nome exibido do app esta configurado como `Planejamento Diario`.
-- O app nao depende mais de Python ou backend para funcionar no celular.
+- Nome exibido: `Planejamento Diário`
+- Identificador Android: `com.haynan.planejamentodiario`
+- Tipo de build para instalação direta: APK
+- Pasta principal do app: `aplicativo`
