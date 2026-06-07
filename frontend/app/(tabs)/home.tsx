@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useState } from "react";
 import {
   View,
   Text,
@@ -46,7 +46,7 @@ export default function DashboardScreen() {
       setGoals(g);
       setStats(s);
       setProfile(p);
-    } catch (e: any) {
+    } catch {
       toast.show("Erro ao carregar dados", "error");
     } finally {
       setLoading(false);

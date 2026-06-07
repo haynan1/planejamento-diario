@@ -13,7 +13,7 @@ import { useTheme } from "@/src/theme/ThemeProvider";
 import { api, Achievement } from "@/src/api/client";
 
 interface CtxValue {
-  /** Calls backend to evaluate achievements and shows the first newly unlocked one. */
+  /** Evaluates local achievements and shows the first newly unlocked one. */
   checkAndCelebrate: () => Promise<void>;
 }
 

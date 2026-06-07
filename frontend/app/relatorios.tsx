@@ -13,7 +13,7 @@ import { LinearGradient } from "expo-linear-gradient";
 
 import { useTheme } from "@/src/theme/ThemeProvider";
 import { api, MonthlyReport, Profile } from "@/src/api/client";
-import { CATEGORIES, PRIORITIES, categoryLabel } from "@/src/constants/goals";
+import { CATEGORIES, PRIORITIES } from "@/src/constants/goals";
 
 export default function RelatoriosScreen() {
   const { colors } = useTheme();
