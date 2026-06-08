@@ -15,6 +15,7 @@ export type RecurrenceType = "daily" | "weekdays" | "weekends" | "count" | "fore
 export interface GoalRecurrence {
   type: RecurrenceType;
   start_date: string;
+  end_date?: string;
   days?: number;
 }
 
@@ -251,7 +252,7 @@ function getRecurringRange(filters: GoalFilters) {
   };
 }
 
-function recurrenceMatchesDate(recurrence: GoalRecurrence, date: string) {
+function recurrenceOccursOnDate(recurrence: GoalRecurrence, date: string) {
   if (date < recurrence.start_date) return false;
 
   const current = parseLocalISODate(date);
@@ -266,6 +267,11 @@ function recurrenceMatchesDate(recurrence: GoalRecurrence, date: string) {
   return true;
 }
 
+export function recurrenceMatchesDate(recurrence: GoalRecurrence, date: string) {
+  if (recurrence.end_date && date > recurrence.end_date) return false;
+  return recurrenceOccursOnDate(recurrence, date);
+}
+
 function expandRecurringGoal(goal: Goal, from: string, to: string) {
   if (!goal.recurrence) return [goal];
 
@@ -275,8 +281,9 @@ function expandRecurringGoal(goal: Goal, from: string, to: string) {
 
   while (cursor <= end) {
     const date = formatLocalISODate(cursor);
-    if (recurrenceMatchesDate(goal.recurrence, date)) {
-      const override = goal.recurrence_overrides?.[date];
+    const override = goal.recurrence_overrides?.[date];
+    const completedRecord = (override?.status ?? goal.status) === "concluida" && recurrenceOccursOnDate(goal.recurrence, date);
+    if (recurrenceMatchesDate(goal.recurrence, date) || completedRecord) {
       items.push({
         ...goal,
         id: makeOccurrenceId(goal.id, date),
@@ -574,7 +581,37 @@ export const api = {
   deleteGoal: async (id: string): Promise<{ ok: boolean }> => {
     const goals = await getGoals();
     const occurrence = parseOccurrenceId(id);
-    await saveGoals(goals.filter((g) => g.id !== (occurrence?.goalId ?? id)));
+    const goalId = occurrence?.goalId ?? id;
+    const index = goals.findIndex((g) => g.id === goalId);
+    const goal = goals[index];
+
+    if (!goal?.recurrence) {
+      await saveGoals(goals.filter((g) => g.id !== goalId));
+      return { ok: true };
+    }
+
+    const stopDate = occurrence?.date ?? todayLocalISO();
+    const endDate = formatLocalISODate(addLocalDays(parseLocalISODate(stopDate), -1));
+    const completedRecords = goal.status === "concluida" || Object.values(goal.recurrence_overrides ?? {}).some(
+      (override) => override.status === "concluida",
+    );
+
+    if (endDate < goal.recurrence.start_date && !completedRecords) {
+      await saveGoals(goals.filter((g) => g.id !== goalId));
+      return { ok: true };
+    }
+
+    const currentEndDate = goal.recurrence.end_date;
+    const nextEndDate = currentEndDate && currentEndDate < endDate ? currentEndDate : endDate;
+    const updated = [...goals];
+    updated[index] = {
+      ...goal,
+      recurrence: {
+        ...goal.recurrence,
+        end_date: nextEndDate,
+      },
+    };
+    await saveGoals(updated);
     return { ok: true };
   },
 

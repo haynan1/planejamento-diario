@@ -123,6 +123,17 @@ export default function PlanejamentoScreen() {
     }
   };
 
+  const deleteGoal = async (g: Goal) => {
+    try {
+      await api.deleteGoal(g.id);
+      await cancelGoalNotification(g.id);
+      toast.show(g.recurrence ? "Meta recorrente encerrada" : "Meta excluida", "success");
+      load();
+    } catch {
+      toast.show("Erro ao excluir", "error");
+    }
+  };
+
   const modes: { key: Mode; label: string }[] = [
     { key: "hoje", label: "Hoje" },
     { key: "semana", label: "Semana" },
@@ -148,7 +159,13 @@ export default function PlanejamentoScreen() {
         </View>
         <View style={[styles.dayList, { borderLeftColor: colors.border }]}>
           {list.map((g) => (
-            <GoalCard key={g.id} goal={g} onToggleComplete={toggleComplete} compact />
+            <GoalCard
+              key={g.id}
+              goal={g}
+              onToggleComplete={toggleComplete}
+              onDelete={variant === "overdue" ? deleteGoal : undefined}
+              compact
+            />
           ))}
         </View>
       </View>

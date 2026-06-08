@@ -88,7 +88,7 @@ export default function MetasScreen() {
     try {
       await api.deleteGoal(g.id);
       await cancelGoalNotification(g.id);
-      toast.show("Meta excluída", "success");
+      toast.show(g.recurrence ? "Meta recorrente encerrada" : "Meta excluída", "success");
       load();
     } catch {
       toast.show("Erro ao excluir", "error");

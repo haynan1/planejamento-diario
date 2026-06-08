@@ -34,7 +34,7 @@ const recurrenceLabel = (goal: Goal) => {
   if (goal.recurrence.type === "weekdays") return "Dias úteis";
   if (goal.recurrence.type === "weekends") return "Finais de semana";
   if (goal.recurrence.type === "count") return `${goal.recurrence.days ?? 0} dias`;
-  return "Sempre";
+  return "365 dias";
 };
 
 export default function GoalCard({
@@ -149,7 +149,7 @@ export default function GoalCard({
         </View>
       </View>
 
-      {(onEdit || onDelete) && !compact ? (
+      {(onEdit || onDelete) && (!compact || onDelete) ? (
         <View style={styles.actions}>
           {onEdit ? (
             <TouchableOpacity
@@ -164,9 +164,10 @@ export default function GoalCard({
             <TouchableOpacity
               onPress={() => onDelete(goal)}
               style={[styles.iconBtn, { backgroundColor: colors.surfaceElevated }]}
+              accessibilityLabel={goal.recurrence ? "Encerrar meta recorrente" : "Excluir meta"}
               testID={`goal-delete-${goal.id}`}
             >
-              <Feather name="trash-2" size={14} color={colors.accent} />
+              <Feather name={goal.recurrence ? "stop-circle" : "trash-2"} size={14} color={colors.accent} />
             </TouchableOpacity>
           ) : null}
         </View>

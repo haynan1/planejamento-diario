@@ -1,7 +1,7 @@
 import { Platform } from "react-native";
 import * as Notifications from "expo-notifications";
 import { storage } from "@/src/utils/storage";
-import { Goal, GoalRecurrence } from "@/src/api/client";
+import { Goal, recurrenceMatchesDate } from "@/src/api/client";
 import { addLocalDays, formatLocalISODate, parseLocalISODate, todayLocalISO } from "@/src/utils/date";
 
 const STORAGE_KEY = "rf_goal_notif_ids";
@@ -79,21 +79,6 @@ function buildTriggerDateForGoalDate(goal: Goal, date: string): Date | null {
 
 function notificationKey(goalId: string) {
   return goalId.split(RECURRENCE_ID_SEPARATOR)[0];
-}
-
-function recurrenceMatchesDate(recurrence: GoalRecurrence, date: string) {
-  if (date < recurrence.start_date) return false;
-
-  const current = parseLocalISODate(date);
-  const start = parseLocalISODate(recurrence.start_date);
-  const daysSinceStart = Math.round((current.getTime() - start.getTime()) / 86400000);
-  if (daysSinceStart < 0) return false;
-  if (recurrence.type === "count" && daysSinceStart >= (recurrence.days ?? 0)) return false;
-
-  const day = current.getDay();
-  if (recurrence.type === "weekdays") return day >= 1 && day <= 5;
-  if (recurrence.type === "weekends") return day === 0 || day === 6;
-  return true;
 }
 
 function buildNextTriggerDate(goal: Goal): Date | null {

@@ -46,7 +46,7 @@ const recurrenceOptions: { key: RecurrenceOption; label: string }[] = [
   { key: "weekdays", label: "Dias úteis" },
   { key: "weekends", label: "Finais de semana" },
   { key: "count", label: "Quantidade" },
-  { key: "forever", label: "Sempre" },
+  { key: "forever", label: "365 dias" },
 ];
 
 export default function CriarMetaScreen() {
@@ -120,6 +120,7 @@ export default function CriarMetaScreen() {
             type: recurrence,
             start_date: date,
             ...(recurrence === "count" ? { days: parsedRecurrenceDays } : {}),
+            ...(recurrence === "forever" ? { end_date: addDays(date, 364) } : {}),
           };
 
     setSaving(true);
@@ -333,6 +334,11 @@ export default function CriarMetaScreen() {
                   Inclui a data escolhida.
                 </Text>
               </>
+            ) : null}
+            {recurrence === "forever" ? (
+              <Text style={[styles.helper, { color: colors.textMuted }]}>
+                Cria uma ocorrencia por dia por 365 dias, contando a partir da data escolhida.
+              </Text>
             ) : null}
           </View>
 
