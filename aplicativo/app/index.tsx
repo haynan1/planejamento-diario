@@ -328,6 +328,9 @@ export default function WelcomeScreen() {
                 onPress={onLaunch}
                 activeOpacity={0.85}
                 disabled={launching}
+                accessibilityLabel="Decolar"
+                accessibilityRole="button"
+                accessibilityState={{ disabled: launching, busy: launching }}
                 testID="welcome-launch-button"
               >
                 <LinearGradient

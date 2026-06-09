@@ -14,6 +14,8 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useTheme } from "@/src/theme/ThemeProvider";
 import { api, Profile } from "@/src/api/client";
 import { useToast } from "@/src/components/Toast";
+import { cancelAllGoalNotifications } from "@/src/notifications";
+import { haptics } from "@/src/utils/haptics";
 
 const FEATURES = [
   { icon: "bell", title: "Notificações inteligentes", desc: "Lembretes no horário ideal e alertas de sequência" },
@@ -46,7 +48,16 @@ export default function PremiumScreen() {
     setLoading(true);
     try {
       const next = !(profile?.is_premium ?? false);
-      const updated = await api.updateProfile({ is_premium: next });
+      haptics.success();
+      let updated: Profile;
+      if (next) {
+        updated = await api.updateProfile({ is_premium: true });
+      } else {
+        // Premium-only perks must fully unwind on downgrade — otherwise the
+        // user keeps receiving reminders for a feature the UI now hides.
+        await cancelAllGoalNotifications();
+        updated = await api.updateProfile({ is_premium: false, notifications_enabled: false });
+      }
       setProfile(updated);
       toast.show(
         next ? "Premium ativado! Aproveite todos os recursos." : "Premium desativado",
@@ -67,6 +78,8 @@ export default function PremiumScreen() {
         <TouchableOpacity
           onPress={() => router.back()}
           style={[styles.headerBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
+          accessibilityLabel="Fechar"
+          accessibilityRole="button"
           testID="premium-close"
         >
           <Feather name="x" size={18} color={colors.textPrimary} />

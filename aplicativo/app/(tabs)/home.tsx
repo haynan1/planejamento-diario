@@ -22,6 +22,7 @@ import { useToast } from "@/src/components/Toast";
 import { useAchievements } from "@/src/components/AchievementProvider";
 import { cancelGoalNotification } from "@/src/notifications";
 import Avatar from "@/src/components/Avatar";
+import Mascot from "@/src/components/Mascot";
 import { todayLocalISO } from "@/src/utils/date";
 
 export default function DashboardScreen() {
@@ -123,6 +124,8 @@ export default function DashboardScreen() {
           <TouchableOpacity
             onPress={() => router.push("/perfil")}
             activeOpacity={0.85}
+            accessibilityLabel="Abrir perfil"
+            accessibilityRole="button"
             testID="header-avatar"
           >
             <Avatar base64={profile?.avatar_base64} size={48} color={colors.accent} />
@@ -172,6 +175,21 @@ export default function DashboardScreen() {
           </View>
         </LinearGradient>
 
+        {/* Streak-at-risk warning */}
+        {stats?.streak_at_risk ? (
+          <View style={[styles.riskCard, { backgroundColor: colors.warning + "14", borderColor: colors.warning + "40" }]}>
+            <Mascot pose="worried" size={44} />
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.riskTitle, { color: colors.textPrimary }]}>
+                Sua sequência de {stats.current_streak} {stats.current_streak === 1 ? "dia" : "dias"} está em risco
+              </Text>
+              <Text style={[styles.riskSub, { color: colors.textSecondary }]}>
+                Conclua ao menos uma meta hoje para mantê-la viva.
+              </Text>
+            </View>
+          </View>
+        ) : null}
+
         {/* Motivational phrase */}
         {phrase ? (
           <View style={[styles.phraseCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
@@ -190,7 +208,7 @@ export default function DashboardScreen() {
 
         {loading ? null : goals.length === 0 ? (
           <View style={[styles.emptyCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <Feather name="target" size={36} color={colors.textMuted} />
+            <Mascot pose="sleepy" size={64} />
             <Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>
               Nenhuma meta cadastrada ainda
             </Text>
@@ -253,6 +271,16 @@ const styles = StyleSheet.create({
   statValue: { fontSize: 22, fontWeight: "800" },
   statLabel: { fontSize: 11, fontWeight: "700", letterSpacing: 0.5, textTransform: "uppercase", marginTop: 4 },
   divider: { width: 1, height: 32 },
+  riskCard: {
+    padding: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  riskTitle: { fontSize: 13, fontWeight: "800", letterSpacing: -0.1 },
+  riskSub: { fontSize: 12, marginTop: 2, lineHeight: 16 },
   phraseCard: {
     padding: 16,
     borderRadius: 16,

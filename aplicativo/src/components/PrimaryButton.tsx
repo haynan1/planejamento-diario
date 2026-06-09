@@ -45,6 +45,9 @@ export default function PrimaryButton({
         style,
       ]}
       activeOpacity={0.85}
+      accessibilityLabel={label}
+      accessibilityRole="button"
+      accessibilityState={{ disabled: disabled || loading, busy: loading }}
       testID={testID}
     >
       {loading ? (

@@ -12,7 +12,9 @@ import {
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useTheme } from "@/src/theme/ThemeProvider";
-import { api, Achievement } from "@/src/api/client";
+import { api, Achievement, XP_PER_COMPLETED_GOAL } from "@/src/api/client";
+import { haptics } from "@/src/utils/haptics";
+import Mascot, { MascotPose } from "@/src/components/Mascot";
 
 interface CtxValue {
   /** Evaluates local achievements and shows the first newly unlocked one. */
@@ -20,7 +22,21 @@ interface CtxValue {
   celebrateGoalCompletion: (goalTitle?: string) => void;
 }
 
+interface CelebrationSpec {
+  kicker: string;
+  title: string;
+  description: string;
+  badge: string;
+  accentColor: string;
+  mascotPose: MascotPose;
+}
+
 const Ctx = createContext<CtxValue | null>(null);
+
+/** How long the bottom celebration overlay stays on screen (mirrors the timeout in triggerCelebration). */
+const CELEBRATION_OVERLAY_DURATION_MS = 2400;
+/** Breathing room between the overlay fading out and the achievement modal appearing. */
+const CELEBRATION_HANDOFF_GAP_MS = 250;
 
 const iconMap: Record<string, React.ComponentProps<typeof Feather>["name"]> = {
   rocket: "navigation",
@@ -42,11 +58,13 @@ export function AchievementProvider({ children }: { children: React.ReactNode })
   const { colors } = useTheme();
   const [queue, setQueue] = useState<Achievement[]>([]);
   const [current, setCurrent] = useState<Achievement | null>(null);
-  const [completionTitle, setCompletionTitle] = useState<string | null>(null);
+  const [celebration, setCelebration] = useState<CelebrationSpec | null>(null);
   const scale = useRef(new Animated.Value(0.7)).current;
   const opacity = useRef(new Animated.Value(0)).current;
   const completionProgress = useRef(new Animated.Value(0)).current;
   const completionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Timestamp (ms) when the bottom celebration overlay is expected to finish — lets the achievement modal wait its turn instead of stacking on top of it. */
+  const celebrationEndsAtRef = useRef(0);
   const confetti = useRef(
     Array.from({ length: 18 }, (_, index) => ({
       key: index,
@@ -60,6 +78,7 @@ export function AchievementProvider({ children }: { children: React.ReactNode })
   const showNext = useCallback(
     (list: Achievement[]) => {
       if (list.length === 0) return;
+      haptics.success();
       const [first, ...rest] = list;
       setCurrent(first);
       setQueue(rest);
@@ -84,23 +103,14 @@ export function AchievementProvider({ children }: { children: React.ReactNode })
     });
   }, [scale, opacity, queue, showNext]);
 
-  const checkAndCelebrate = useCallback(async () => {
-    try {
-      const res = await api.checkAchievements();
-      if (res.newly_unlocked && res.newly_unlocked.length > 0) {
-        showNext(res.newly_unlocked);
-      }
-    } catch {
-      // ignore
-    }
-  }, [showNext]);
-
-  const celebrateGoalCompletion = useCallback(
-    (goalTitle?: string) => {
+  const triggerCelebration = useCallback(
+    (spec: CelebrationSpec) => {
+      haptics.success();
       if (completionTimer.current) clearTimeout(completionTimer.current);
       completionProgress.stopAnimation();
       completionProgress.setValue(0);
-      setCompletionTitle(goalTitle?.trim() || "Meta concluída");
+      setCelebration(spec);
+      celebrationEndsAtRef.current = Date.now() + CELEBRATION_OVERLAY_DURATION_MS;
 
       Animated.sequence([
         Animated.timing(completionProgress, {
@@ -117,18 +127,70 @@ export function AchievementProvider({ children }: { children: React.ReactNode })
           useNativeDriver: true,
         }),
       ]).start(({ finished }) => {
-        if (finished) setCompletionTitle(null);
+        if (finished) setCelebration(null);
       });
 
-      completionTimer.current = setTimeout(() => setCompletionTitle(null), 2400);
+      completionTimer.current = setTimeout(() => setCelebration(null), 2400);
     },
     [completionProgress]
   );
 
+  const celebrateGoalCompletion = useCallback(
+    (goalTitle?: string) => {
+      triggerCelebration({
+        kicker: "BOA!",
+        title: "Meta concluída",
+        description: goalTitle?.trim() || "Meta concluída",
+        badge: `+${XP_PER_COMPLETED_GOAL} XP`,
+        accentColor: colors.success,
+        mascotPose: "happy",
+      });
+    },
+    [triggerCelebration, colors.success]
+  );
+
+  const celebrateLevelUp = useCallback(
+    (level: number) => {
+      triggerCelebration({
+        kicker: "EVOLUÇÃO!",
+        title: `Nível ${level}`,
+        description: "Sua constância está te levando mais longe.",
+        badge: "LEVEL UP",
+        accentColor: colors.accent,
+        mascotPose: "proud",
+      });
+    },
+    [triggerCelebration, colors.accent]
+  );
+
+  const checkAndCelebrate = useCallback(async () => {
+    try {
+      const [achievementsRes, levelRes] = await Promise.all([
+        api.checkAchievements(),
+        api.checkLevelUp(),
+      ]);
+      if (levelRes.leveled_up) {
+        celebrateLevelUp(levelRes.level);
+      }
+      const unlocked = achievementsRes.newly_unlocked;
+      if (unlocked && unlocked.length > 0) {
+        // Let any active/about-to-start bottom celebration overlay finish first so it never collides with the achievement modal.
+        const wait = celebrationEndsAtRef.current - Date.now();
+        if (wait > 0) {
+          setTimeout(() => showNext(unlocked), wait + CELEBRATION_HANDOFF_GAP_MS);
+        } else {
+          showNext(unlocked);
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }, [showNext, celebrateLevelUp]);
+
   return (
     <Ctx.Provider value={{ checkAndCelebrate, celebrateGoalCompletion }}>
       {children}
-      {completionTitle ? (
+      {celebration ? (
         <View pointerEvents="none" style={styles.completionOverlay} testID="goal-completion-celebration">
           {confetti.map((piece) => {
             const translateY = completionProgress.interpolate({
@@ -168,7 +230,7 @@ export function AchievementProvider({ children }: { children: React.ReactNode })
               styles.completionCard,
               {
                 backgroundColor: colors.surfaceElevated,
-                borderColor: colors.success + "55",
+                borderColor: celebration.accentColor + "55",
                 opacity: completionProgress.interpolate({
                   inputRange: [0, 0.12, 1.75, 2],
                   outputRange: [0, 1, 1, 0],
@@ -194,7 +256,8 @@ export function AchievementProvider({ children }: { children: React.ReactNode })
               style={[
                 styles.mascotBubble,
                 {
-                  backgroundColor: colors.success,
+                  backgroundColor: celebration.accentColor + "1A",
+                  borderColor: celebration.accentColor + "40",
                   transform: [
                     {
                       rotate: completionProgress.interpolate({
@@ -206,19 +269,19 @@ export function AchievementProvider({ children }: { children: React.ReactNode })
                 },
               ]}
             >
-              <Feather name="navigation" size={34} color="#fff" />
+              <Mascot pose={celebration.mascotPose} size={48} />
             </Animated.View>
             <View style={styles.completionTextWrap}>
-              <Text style={[styles.completionKicker, { color: colors.success }]}>BOA!</Text>
+              <Text style={[styles.completionKicker, { color: celebration.accentColor }]}>{celebration.kicker}</Text>
               <Text style={[styles.completionTitle, { color: colors.textPrimary }]} numberOfLines={1}>
-                Meta concluída
+                {celebration.title}
               </Text>
               <Text style={[styles.completionDesc, { color: colors.textSecondary }]} numberOfLines={1}>
-                {completionTitle}
+                {celebration.description}
               </Text>
             </View>
-            <View style={[styles.xpPill, { backgroundColor: colors.success + "20" }]}>
-              <Text style={[styles.xpText, { color: colors.success }]}>+10 XP</Text>
+            <View style={[styles.xpPill, { backgroundColor: celebration.accentColor + "20" }]}>
+              <Text style={[styles.xpText, { color: celebration.accentColor }]}>{celebration.badge}</Text>
             </View>
           </Animated.View>
         </View>
@@ -263,7 +326,10 @@ export function AchievementProvider({ children }: { children: React.ReactNode })
                 {current.description}
               </Text>
               <TouchableOpacity
-                onPress={close}
+                onPress={() => {
+                  haptics.tap();
+                  close();
+                }}
                 style={[styles.btn, { backgroundColor: colors.accent }]}
                 testID="achievement-modal-close"
               >
@@ -318,6 +384,7 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
+    borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
   },

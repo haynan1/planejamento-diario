@@ -41,6 +41,8 @@ export default function FilterChipRow<T extends string>({
                   borderColor: active ? colors.accent : colors.border,
                 },
               ]}
+              accessibilityRole="button"
+              accessibilityState={{ selected: active }}
               testID={`${testIDPrefix}-${opt.key}`}
               activeOpacity={0.8}
             >

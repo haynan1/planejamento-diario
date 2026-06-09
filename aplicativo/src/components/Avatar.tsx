@@ -1,5 +1,6 @@
 import React from "react";
-import { View, Image, StyleSheet } from "react-native";
+import { View, StyleSheet } from "react-native";
+import { Image } from "expo-image";
 import { Feather } from "@expo/vector-icons";
 
 interface Props {
@@ -11,11 +12,7 @@ interface Props {
 
 export default function Avatar({ base64, size = 48, color = "#FF2A4D", iconColor = "#fff" }: Props) {
   const radius = size / 2;
-  const uri = base64
-    ? base64.startsWith("data:")
-      ? base64
-      : `data:image/jpeg;base64,${base64}`
-    : null;
+  const uri = base64 ?? null;
 
   return (
     <View
@@ -33,7 +30,8 @@ export default function Avatar({ base64, size = 48, color = "#FF2A4D", iconColor
         <Image
           source={{ uri }}
           style={{ width: size, height: size, borderRadius: radius }}
-          resizeMode="cover"
+          contentFit="cover"
+          transition={150}
         />
       ) : (
         <Feather

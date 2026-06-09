@@ -48,6 +48,8 @@ export default function RelatoriosScreen() {
           <TouchableOpacity
             onPress={() => router.back()}
             style={[styles.headerBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            accessibilityLabel="Fechar"
+            accessibilityRole="button"
             testID="relatorios-close"
           >
             <Feather name="x" size={18} color={colors.textPrimary} />
@@ -89,6 +91,8 @@ export default function RelatoriosScreen() {
         <TouchableOpacity
           onPress={() => router.back()}
           style={[styles.headerBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
+          accessibilityLabel="Fechar"
+          accessibilityRole="button"
           testID="relatorios-close"
         >
           <Feather name="x" size={18} color={colors.textPrimary} />

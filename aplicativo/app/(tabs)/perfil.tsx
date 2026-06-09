@@ -26,6 +26,7 @@ import {
   requestNotificationPermission,
   cancelAllGoalNotifications,
 } from "@/src/notifications";
+import { haptics } from "@/src/utils/haptics";
 
 export default function PerfilScreen() {
   const { colors, mode, setMode } = useTheme();
@@ -74,6 +75,7 @@ export default function PerfilScreen() {
   };
 
   const togglePhrases = async (v: boolean) => {
+    haptics.tap();
     try {
       const p = await api.updateProfile({ motivational_phrases_enabled: v });
       setProfile(p);
@@ -82,17 +84,13 @@ export default function PerfilScreen() {
     }
   };
 
-  const toggleTheme = async () => {
-    const next = mode === "dark" ? "light" : "dark";
-    setMode(next);
-    try {
-      await api.updateProfile({ theme: next });
-    } catch {
-      // ignore
-    }
+  const toggleTheme = () => {
+    haptics.tap();
+    setMode(mode === "dark" ? "light" : "dark");
   };
 
   const clearData = async () => {
+    haptics.warning();
     try {
       await cancelAllGoalNotifications();
       await api.clearData();
@@ -157,6 +155,7 @@ export default function PerfilScreen() {
   };
 
   const toggleNotifications = async (next: boolean) => {
+    haptics.tap();
     if (!next) {
       await api.updateProfile({ notifications_enabled: false });
       await cancelAllGoalNotifications();
@@ -212,6 +211,8 @@ export default function PerfilScreen() {
               onPress={pickAvatar}
               activeOpacity={0.85}
               disabled={uploadingPhoto}
+              accessibilityLabel="Alterar foto de perfil"
+              accessibilityRole="button"
               testID="avatar-picker"
             >
               <View style={[styles.avatarRing, { borderColor: colors.accent }]}>
@@ -259,6 +260,8 @@ export default function PerfilScreen() {
               <TouchableOpacity
                 onPress={saveName}
                 style={[styles.saveBtn, { backgroundColor: colors.accent }]}
+                accessibilityLabel="Salvar nome"
+                accessibilityRole="button"
                 testID="profile-name-save"
               >
                 <Feather name="check" size={16} color="#fff" />
@@ -268,6 +271,8 @@ export default function PerfilScreen() {
             <TouchableOpacity
               onPress={() => setEditingName(true)}
               style={styles.nameRow}
+              accessibilityLabel="Editar nome"
+              accessibilityRole="button"
               testID="profile-name-edit"
             >
               <Text style={[styles.name, { color: colors.textPrimary }]}>
@@ -279,6 +284,31 @@ export default function PerfilScreen() {
           <Text style={[styles.tagline, { color: colors.textSecondary }]}>
             Construindo seu futuro, uma meta por vez.
           </Text>
+
+          <View style={styles.levelRow}>
+            <View style={[styles.levelBadge, { backgroundColor: colors.accent + "1A", borderColor: colors.accent + "40" }]}>
+              <Feather name="trending-up" size={12} color={colors.accent} />
+              <Text style={[styles.levelBadgeText, { color: colors.accent }]}>
+                Nível {stats?.level ?? 1}
+              </Text>
+            </View>
+            <View style={styles.xpBarWrap}>
+              <View style={[styles.xpBarTrack, { backgroundColor: colors.border }]}>
+                <View
+                  style={[
+                    styles.xpBarFill,
+                    {
+                      backgroundColor: colors.accent,
+                      width: `${stats ? Math.min(100, Math.round((stats.xp_into_level / Math.max(1, stats.xp_for_level)) * 100)) : 0}%`,
+                    },
+                  ]}
+                />
+              </View>
+              <Text style={[styles.xpBarLabel, { color: colors.textMuted }]}>
+                {stats?.xp_into_level ?? 0}/{stats?.xp_for_level ?? 150} XP até o próximo nível
+              </Text>
+            </View>
+          </View>
 
           <View style={styles.miniStats}>
             <View style={styles.miniBox}>
@@ -398,6 +428,8 @@ export default function PerfilScreen() {
               onValueChange={toggleTheme}
               trackColor={{ true: colors.accent, false: colors.border }}
               thumbColor="#fff"
+              accessibilityLabel="Alternar tema escuro"
+              accessibilityRole="switch"
               testID="theme-toggle"
             />
           </View>
@@ -421,6 +453,8 @@ export default function PerfilScreen() {
               onValueChange={togglePhrases}
               trackColor={{ true: colors.accent, false: colors.border }}
               thumbColor="#fff"
+              accessibilityLabel="Alternar frases motivacionais"
+              accessibilityRole="switch"
               testID="phrases-toggle"
             />
           </View>
@@ -456,6 +490,8 @@ export default function PerfilScreen() {
               }}
               trackColor={{ true: colors.accent, false: colors.border }}
               thumbColor="#fff"
+              accessibilityLabel="Alternar notificações de metas"
+              accessibilityRole="switch"
               testID="notifications-toggle"
             />
           </View>
@@ -536,6 +572,27 @@ const styles = StyleSheet.create({
   },
   saveBtn: { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   tagline: { fontSize: 13, textAlign: "center", fontStyle: "italic" },
+  levelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    alignSelf: "stretch",
+    marginTop: 14,
+  },
+  levelBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  levelBadgeText: { fontSize: 12, fontWeight: "800", letterSpacing: -0.1 },
+  xpBarWrap: { flex: 1, gap: 5 },
+  xpBarTrack: { height: 6, borderRadius: 999, overflow: "hidden" },
+  xpBarFill: { height: "100%", borderRadius: 999 },
+  xpBarLabel: { fontSize: 10, fontWeight: "600" },
   miniStats: { flexDirection: "row", marginTop: 16, alignSelf: "stretch", alignItems: "center" },
   miniBox: { flex: 1, alignItems: "center" },
   miniValue: { fontSize: 20, fontWeight: "800" },

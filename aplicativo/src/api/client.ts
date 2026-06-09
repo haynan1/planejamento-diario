@@ -6,11 +6,31 @@ import { addLocalDays, formatLocalISODate, parseLocalISODate, todayLocalISO } fr
 const GOALS_KEY = "rocket_forward:goals";
 const PROFILE_KEY = "rocket_forward:profile";
 const ACHIEVEMENTS_KEY = "rocket_forward:achievements";
+const LEVEL_KEY = "rocket_forward:level";
 const FREE_ACTIVE_GOAL_LIMIT = 5;
 const RECURRENCE_ID_SEPARATOR = "::";
 const RECURRING_LOOKAHEAD_DAYS = 30;
 
-export type RecurrenceType = "daily" | "weekdays" | "weekends" | "count" | "forever";
+/** Source of truth for the XP awarded per completed goal — also surfaced in the celebration UI. */
+export const XP_PER_COMPLETED_GOAL = 10;
+
+function xpRequiredForLevel(level: number) {
+  return level * 150;
+}
+
+function levelFromXp(xp: number) {
+  let level = 1;
+  let xpAtLevelStart = 0;
+  let xpForLevel = xpRequiredForLevel(level);
+  while (xp >= xpAtLevelStart + xpForLevel) {
+    xpAtLevelStart += xpForLevel;
+    level += 1;
+    xpForLevel = xpRequiredForLevel(level);
+  }
+  return { level, xpIntoLevel: xp - xpAtLevelStart, xpForLevel };
+}
+
+export type RecurrenceType = "weekdays" | "weekends" | "count" | "forever";
 
 export interface GoalRecurrence {
   type: RecurrenceType;
@@ -51,14 +71,19 @@ export interface Stats {
   productive_days: number;
   best_streak: number;
   current_streak: number;
+  /** True when an active streak will lapse unless a goal is completed today. */
+  streak_at_risk: boolean;
   weekly_evolution: { date: string; count: number }[];
+  xp: number;
+  level: number;
+  xp_into_level: number;
+  xp_for_level: number;
 }
 
 export interface Profile {
   id: string;
   name: string;
   motivational_phrases_enabled: boolean;
-  theme: "light" | "dark";
   is_premium: boolean;
   notifications_enabled: boolean;
   avatar_base64: string | null;
@@ -72,6 +97,9 @@ export interface Achievement {
   group: string;
   unlocked: boolean;
   unlocked_at: string | null;
+  /** How close the user is to unlocking — null when the achievement has no measurable progress (e.g. "all categories"). */
+  progress_current: number | null;
+  progress_target: number | null;
 }
 
 export interface AchievementsResponse {
@@ -109,7 +137,6 @@ const defaultProfile: Profile = {
   id: "default",
   name: "Astronauta",
   motivational_phrases_enabled: true,
-  theme: "dark",
   is_premium: false,
   notifications_enabled: false,
   avatar_base64: null,
@@ -299,9 +326,25 @@ function expandRecurringGoal(goal: Goal, from: string, to: string) {
   return items;
 }
 
+/**
+ * Expanding recurring goals into per-date occurrences is the hottest path in
+ * this module — every screen load fans out into listGoals/getStats/
+ * checkAchievements/checkLevelUp, each re-walking the same ~365-day window.
+ * Cache by (date range, day) and drop the cache whenever goals are written;
+ * "day" keeps "today"-relative ranges correct across midnight rollovers.
+ */
+const expansionCache = new Map<string, { today: string; result: Goal[] }>();
+
 function expandGoals(goals: Goal[], filters: GoalFilters) {
   const range = getRecurringRange(filters);
-  return goals.flatMap((goal) => expandRecurringGoal(goal, range.from, range.to));
+  const today = todayLocalISO();
+  const cacheKey = `${range.from}|${range.to}`;
+  const cached = expansionCache.get(cacheKey);
+  if (cached && cached.today === today) return cached.result;
+
+  const result = goals.flatMap((goal) => expandRecurringGoal(goal, range.from, range.to));
+  expansionCache.set(cacheKey, { today, result });
+  return result;
 }
 
 async function readJson<T>(key: string, fallback: T): Promise<T> {
@@ -324,6 +367,7 @@ async function getGoals(): Promise<Goal[]> {
 
 async function saveGoals(goals: Goal[]): Promise<void> {
   await writeJson(GOALS_KEY, goals);
+  expansionCache.clear();
 }
 
 async function getUnlockedMap(): Promise<Record<string, string>> {
@@ -376,14 +420,27 @@ function bestStreak(dates: Set<string>) {
   return best;
 }
 
-function currentStreak(dates: Set<string>) {
-  let cursor = parseLocalISODate(todayLocalISO());
+function streakEndingAt(dates: Set<string>, date: string) {
+  let cursor = parseLocalISODate(date);
   let count = 0;
   while (dates.has(formatLocalISODate(cursor))) {
     count += 1;
     cursor = addLocalDays(cursor, -1);
   }
   return count;
+}
+
+/**
+ * A streak survives until the day actually ends — someone who hasn't completed
+ * anything yet at 8am still has yesterday's streak "alive". Counting it as 0
+ * the instant the clock rolls over would be both wrong and needlessly
+ * discouraging, so we fall back to the streak ending yesterday when today has
+ * no productive record yet.
+ */
+function currentStreak(dates: Set<string>) {
+  const today = todayLocalISO();
+  if (dates.has(today)) return streakEndingAt(dates, today);
+  return streakEndingAt(dates, formatLocalISODate(addLocalDays(parseLocalISODate(today), -1)));
 }
 
 function evaluateAchievements(goals: Goal[]) {
@@ -409,48 +466,59 @@ function evaluateAchievements(goals: Goal[]) {
   const streak = bestStreak(dates);
 
   const evaluated: Record<string, boolean> = {};
+  const progress: Record<string, { current: number; target: number }> = {};
+
+  const mark = (key: string, current: number, target: number) => {
+    evaluated[key] = current >= target;
+    progress[key] = { current, target };
+  };
 
   for (const count of createdMilestones) {
-    evaluated[count === 1 ? "first_goal" : `created_${count}`] = createdGoalIds.size >= count;
+    mark(count === 1 ? "first_goal" : `created_${count}`, createdGoalIds.size, count);
   }
   for (const count of completedMilestones) {
-    evaluated[`completed_${count}`] = completedGoals.length >= count;
+    mark(`completed_${count}`, completedGoals.length, count);
   }
   for (const days of streakMilestones) {
-    evaluated[`streak_${days}`] = streak >= days;
+    mark(`streak_${days}`, streak, days);
   }
   for (const days of productiveDayMilestones) {
-    evaluated[`productive_days_${days}`] = dates.size >= days;
+    mark(`productive_days_${days}`, dates.size, days);
   }
   for (const days of perfectDayMilestones) {
-    evaluated[days === 1 ? "perfect_day" : `perfect_days_${days}`] = perfectDayCount >= days;
+    mark(days === 1 ? "perfect_day" : `perfect_days_${days}`, perfectDayCount, days);
   }
   for (const category of CATEGORIES) {
-    evaluated[`category_${category.key}`] = completedCategories.has(category.key);
+    mark(`category_${category.key}`, completedCategories.has(category.key) ? 1 : 0, 1);
   }
   evaluated.all_categories = CATEGORIES.every((c) => completedCategories.has(c.key));
+  progress.all_categories = { current: completedCategories.size, target: CATEGORIES.length };
   for (const priority of PRIORITIES) {
     for (const count of [1, 5, 25]) {
-      evaluated[`priority_${priority.key}_${count}`] = (completedByPriority.get(priority.key) ?? 0) >= count;
+      mark(`priority_${priority.key}_${count}`, completedByPriority.get(priority.key) ?? 0, count);
     }
   }
   for (const count of recurringMilestones) {
-    evaluated[`recurring_${count}`] = recurringGoalIds.size >= count;
+    mark(`recurring_${count}`, recurringGoalIds.size, count);
   }
 
-  return evaluated;
+  return { evaluated, progress };
 }
 
 function hydrateAchievements(
   evaluated: Record<string, boolean>,
+  progress: Record<string, { current: number; target: number }>,
   unlockedMap: Record<string, string>,
 ): Achievement[] {
   return achievementDefinitions.map((definition) => {
     const isUnlocked = Boolean(evaluated[definition.key]);
+    const p = progress[definition.key];
     return {
       ...definition,
       unlocked: isUnlocked,
       unlocked_at: isUnlocked ? unlockedMap[definition.key] ?? null : null,
+      progress_current: p ? Math.min(p.current, p.target) : null,
+      progress_target: p ? p.target : null,
     };
   });
 }
@@ -463,6 +531,10 @@ async function calculateStats(goals: Goal[]): Promise<Stats> {
   const totalToday = completedToday + pendingToday;
   const dates = productiveDates(goals);
   const now = parseLocalISODate(today);
+  const xp = completed.length * XP_PER_COMPLETED_GOAL;
+  const { level, xpIntoLevel, xpForLevel } = levelFromXp(xp);
+  const activeStreak = currentStreak(dates);
+  const streakAtRisk = activeStreak > 0 && !dates.has(today) && pendingToday > 0;
 
   const weekly_evolution = Array.from({ length: 7 }, (_, index) => {
     const date = formatLocalISODate(addLocalDays(now, index - 6));
@@ -482,8 +554,13 @@ async function calculateStats(goals: Goal[]): Promise<Stats> {
     completion_rate: goals.length ? completed.length / goals.length : 0,
     productive_days: dates.size,
     best_streak: bestStreak(dates),
-    current_streak: currentStreak(dates),
+    current_streak: activeStreak,
+    streak_at_risk: streakAtRisk,
     weekly_evolution,
+    xp,
+    level,
+    xp_into_level: xpIntoLevel,
+    xp_for_level: xpForLevel,
   };
 }
 
@@ -499,6 +576,12 @@ export const api = {
   listGoals: async (filters: GoalFilters = {}): Promise<Goal[]> => {
     const goals = await getGoals();
     return sortGoals(applyFilters(expandGoals(goals, filters), filters));
+  },
+
+  /** Raw (non-expanded) recurring goal templates — used to (re)schedule reminders. */
+  listRecurringGoals: async (): Promise<Goal[]> => {
+    const goals = await getGoals();
+    return goals.filter((g) => !!g.recurrence);
   },
 
   createGoal: async (payload: Omit<Goal, "id" | "created_at" | "completed_at">): Promise<Goal> => {
@@ -632,13 +715,26 @@ export const api = {
   },
 
   clearData: async (): Promise<{ ok: boolean }> => {
-    await AsyncStorage.multiRemove([GOALS_KEY, ACHIEVEMENTS_KEY]);
+    await AsyncStorage.multiRemove([GOALS_KEY, ACHIEVEMENTS_KEY, LEVEL_KEY]);
+    expansionCache.clear();
     return { ok: true };
+  },
+
+  /** Compares the current level against the last seen one, persisting and reporting level-ups for celebration. */
+  checkLevelUp: async (): Promise<{ leveled_up: boolean; level: number; previous: number }> => {
+    const [goals, storedLevel] = await Promise.all([getGoals(), readJson<number>(LEVEL_KEY, 1)]);
+    const completedCount = expandGoals(goals, lastYearRange()).filter((g) => g.status === "concluida").length;
+    const { level } = levelFromXp(completedCount * XP_PER_COMPLETED_GOAL);
+    if (level !== storedLevel) {
+      await writeJson(LEVEL_KEY, level);
+    }
+    return { leveled_up: level > storedLevel, level, previous: storedLevel };
   },
 
   listAchievements: async (): Promise<AchievementsResponse> => {
     const [goals, unlockedMap] = await Promise.all([getGoals(), getUnlockedMap()]);
-    const items = hydrateAchievements(evaluateAchievements(expandGoals(goals, lastYearRange())), unlockedMap);
+    const { evaluated, progress } = evaluateAchievements(expandGoals(goals, lastYearRange()));
+    const items = hydrateAchievements(evaluated, progress, unlockedMap);
     return {
       items,
       total: items.length,
@@ -648,7 +744,7 @@ export const api = {
 
   checkAchievements: async (): Promise<{ newly_unlocked: Achievement[]; total_unlocked: number }> => {
     const [goals, unlockedMap] = await Promise.all([getGoals(), getUnlockedMap()]);
-    const evaluated = evaluateAchievements(expandGoals(goals, lastYearRange()));
+    const { evaluated, progress } = evaluateAchievements(expandGoals(goals, lastYearRange()));
     const now = new Date().toISOString();
     const nextMap = { ...unlockedMap };
     const newlyUnlockedKeys: string[] = [];
@@ -664,7 +760,7 @@ export const api = {
       await saveUnlockedMap(nextMap);
     }
 
-    const items = hydrateAchievements(evaluated, nextMap);
+    const items = hydrateAchievements(evaluated, progress, nextMap);
     return {
       newly_unlocked: items.filter((item) => newlyUnlockedKeys.includes(item.key)),
       total_unlocked: items.filter((item) => item.unlocked).length,

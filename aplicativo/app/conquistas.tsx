@@ -57,6 +57,8 @@ export default function ConquistasScreen() {
         <TouchableOpacity
           onPress={() => router.back()}
           style={[styles.headerBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
+          accessibilityLabel="Fechar"
+          accessibilityRole="button"
           testID="conquistas-close"
         >
           <Feather name="x" size={18} color={colors.textPrimary} />
@@ -126,6 +128,24 @@ export default function ConquistasScreen() {
                       <Text style={[styles.cardDesc, { color: colors.textSecondary }]}>
                         {a.description}
                       </Text>
+                      {!a.unlocked && a.progress_target && a.progress_target > 1 ? (
+                        <View style={styles.lockedProgress}>
+                          <View style={[styles.lockedProgressTrack, { backgroundColor: colors.border }]}>
+                            <View
+                              style={[
+                                styles.lockedProgressFill,
+                                {
+                                  backgroundColor: colors.accent,
+                                  width: `${Math.round(((a.progress_current ?? 0) / a.progress_target) * 100)}%`,
+                                },
+                              ]}
+                            />
+                          </View>
+                          <Text style={[styles.lockedProgressLabel, { color: colors.textMuted }]}>
+                            {a.progress_current ?? 0}/{a.progress_target}
+                          </Text>
+                        </View>
+                      ) : null}
                     </View>
                     {a.unlocked ? (
                       <Feather name="check-circle" size={18} color={colors.success} />
@@ -187,4 +207,8 @@ const styles = StyleSheet.create({
   },
   cardTitle: { fontSize: 15, fontWeight: "700", marginBottom: 2 },
   cardDesc: { fontSize: 12, lineHeight: 16 },
+  lockedProgress: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 8 },
+  lockedProgressTrack: { flex: 1, height: 4, borderRadius: 999, overflow: "hidden" },
+  lockedProgressFill: { height: "100%", borderRadius: 999 },
+  lockedProgressLabel: { fontSize: 10, fontWeight: "700" },
 });

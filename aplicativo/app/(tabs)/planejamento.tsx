@@ -3,7 +3,7 @@ import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
+  SectionList,
   TouchableOpacity,
   RefreshControl,
 } from "react-native";
@@ -20,12 +20,20 @@ import { cancelGoalNotification } from "@/src/notifications";
 import { formatLocalISODate, parseLocalISODate } from "@/src/utils/date";
 
 type Mode = "hoje" | "semana" | "mes";
+type SectionItem = [string, Goal[]];
+interface ListSection {
+  key: "overdue" | "today" | "upcoming";
+  title: string;
+  icon: React.ComponentProps<typeof Feather>["name"];
+  accent: string;
+  data: SectionItem[];
+}
 
 const isoDate = formatLocalISODate;
 
 const startOfWeek = (d: Date) => {
   const out = new Date(d);
-  const day = out.getDay(); // Sunday = 0 (Brazilian convention: Dom-Sáb)
+  const day = out.getDay();
   out.setDate(out.getDate() - day);
   out.setHours(0, 0, 0, 0);
   return out;
@@ -61,21 +69,22 @@ export default function PlanejamentoScreen() {
   const [goals, setGoals] = useState<Goal[]>([]);
   const [refreshing, setRefreshing] = useState(false);
 
-  const range = useMemo(() => {
+  const computeRange = useCallback((m: Mode) => {
     const now = new Date();
-    if (mode === "hoje") return { from: isoDate(now), to: isoDate(now) };
-    if (mode === "semana") return { from: isoDate(startOfWeek(now)), to: isoDate(endOfWeek(now)) };
+    if (m === "hoje") return { from: isoDate(now), to: isoDate(now) };
+    if (m === "semana") return { from: isoDate(startOfWeek(now)), to: isoDate(endOfWeek(now)) };
     return { from: isoDate(startOfMonth(now)), to: isoDate(endOfMonth(now)) };
-  }, [mode]);
+  }, []);
 
   const load = useCallback(async () => {
     try {
+      const range = computeRange(mode);
       const data = await api.listGoals({ date_from: range.from, date_to: range.to });
       setGoals(data);
     } catch {
       toast.show("Erro ao carregar planejamento", "error");
     }
-  }, [range, toast]);
+  }, [mode, computeRange, toast]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
@@ -89,7 +98,7 @@ export default function PlanejamentoScreen() {
     const today = todayISO();
     const map = new Map<string, Goal[]>();
     [...goals]
-      .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : (a.time ?? "99") < (b.time ?? "99") ? -1 : 1))
+      .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : (a.time ?? "99:99") < (b.time ?? "99:99") ? -1 : 1))
       .forEach((g) => {
         if (!map.has(g.date)) map.set(g.date, []);
         map.get(g.date)!.push(g);
@@ -108,7 +117,7 @@ export default function PlanejamentoScreen() {
     0
   );
 
-  const toggleComplete = async (g: Goal) => {
+  const toggleComplete = useCallback(async (g: Goal) => {
     try {
       const next = g.status === "concluida" ? "pendente" : "concluida";
       await api.updateGoal(g.id, { status: next });
@@ -121,9 +130,9 @@ export default function PlanejamentoScreen() {
     } catch {
       toast.show("Erro ao atualizar", "error");
     }
-  };
+  }, [load, celebrateGoalCompletion, checkAndCelebrate, toast]);
 
-  const deleteGoal = async (g: Goal) => {
+  const deleteGoal = useCallback(async (g: Goal) => {
     try {
       await api.deleteGoal(g.id);
       await cancelGoalNotification(g.id);
@@ -132,72 +141,78 @@ export default function PlanejamentoScreen() {
     } catch {
       toast.show("Erro ao excluir", "error");
     }
-  };
+  }, [load, toast]);
+
+  const listSections = useMemo<ListSection[]>(() => {
+    const result: ListSection[] = [];
+    if (sections.overdue.length > 0)
+      result.push({ key: "overdue", title: "Atrasadas", icon: "alert-circle", accent: colors.accent, data: sections.overdue });
+    if (sections.today.length > 0)
+      result.push({ key: "today", title: "Hoje", icon: "sun", accent: colors.success, data: sections.today });
+    if (sections.upcoming.length > 0)
+      result.push({ key: "upcoming", title: "Próximos dias", icon: "arrow-up-right", accent: colors.primary, data: sections.upcoming });
+    return result;
+  }, [sections, colors.accent, colors.success, colors.primary]);
+
+  const renderItem = useCallback(
+    ({ item: [date, list], section }: { item: SectionItem; section: ListSection }) => {
+      const done = list.filter((g) => g.status === "concluida").length;
+      return (
+        <View style={styles.daySection}>
+          <View style={styles.dayHeader}>
+            <View style={[styles.dayDot, { backgroundColor: section.accent }]} />
+            <Text style={[styles.dayTitle, { color: colors.textPrimary }]}>
+              {formatLongDate(date)}
+            </Text>
+            <View style={[styles.dayCount, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <Text style={[styles.dayCountText, { color: colors.textSecondary }]}>
+                {done}/{list.length}
+              </Text>
+            </View>
+          </View>
+          <View style={[styles.dayList, { borderLeftColor: colors.border }]}>
+            {list.map((g) => (
+              <GoalCard
+                key={g.id}
+                goal={g}
+                onToggleComplete={toggleComplete}
+                onDelete={section.key === "overdue" ? deleteGoal : undefined}
+                compact
+              />
+            ))}
+          </View>
+        </View>
+      );
+    },
+    [toggleComplete, deleteGoal, colors]
+  );
+
+  const renderSectionHeader = useCallback(
+    ({ section }: { section: ListSection }) => {
+      const isFirst = listSections[0]?.key === section.key;
+      const total = section.data.reduce((s, [, l]) => s + l.length, 0);
+      return (
+        <View style={[styles.sectionHead, !isFirst && styles.sectionHeadGap]}>
+          <View style={[styles.sectionIcon, { backgroundColor: section.accent + "1A" }]}>
+            <Feather name={section.icon} size={14} color={section.accent} />
+          </View>
+          <Text style={[styles.sectionLabel, { color: colors.textPrimary }]}>{section.title}</Text>
+          <Text style={[styles.sectionCount, { color: colors.textMuted }]}>
+            {total} {total === 1 ? "meta" : "metas"}
+          </Text>
+        </View>
+      );
+    },
+    [colors, listSections]
+  );
+
+  const isEmpty = goals.length === 0;
 
   const modes: { key: Mode; label: string }[] = [
     { key: "hoje", label: "Hoje" },
     { key: "semana", label: "Semana" },
     { key: "mes", label: "Mês" },
   ];
-
-  const renderDay = (date: string, list: Goal[], variant: "overdue" | "today" | "upcoming") => {
-    const dotColor =
-      variant === "overdue" ? colors.accent : variant === "today" ? colors.success : colors.primary;
-    const done = list.filter((g) => g.status === "concluida").length;
-    return (
-      <View key={date} style={styles.daySection}>
-        <View style={styles.dayHeader}>
-          <View style={[styles.dayDot, { backgroundColor: dotColor }]} />
-          <Text style={[styles.dayTitle, { color: colors.textPrimary }]}>
-            {formatLongDate(date)}
-          </Text>
-          <View style={[styles.dayCount, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <Text style={[styles.dayCountText, { color: colors.textSecondary }]}>
-              {done}/{list.length}
-            </Text>
-          </View>
-        </View>
-        <View style={[styles.dayList, { borderLeftColor: colors.border }]}>
-          {list.map((g) => (
-            <GoalCard
-              key={g.id}
-              goal={g}
-              onToggleComplete={toggleComplete}
-              onDelete={variant === "overdue" ? deleteGoal : undefined}
-              compact
-            />
-          ))}
-        </View>
-      </View>
-    );
-  };
-
-  const renderSection = (
-    label: string,
-    icon: React.ComponentProps<typeof Feather>["name"],
-    accent: string,
-    days: [string, Goal[]][],
-    variant: "overdue" | "today" | "upcoming"
-  ) => {
-    if (days.length === 0) return null;
-    const total = days.reduce((s, [, l]) => s + l.length, 0);
-    return (
-      <View style={styles.section}>
-        <View style={styles.sectionHead}>
-          <View style={[styles.sectionIcon, { backgroundColor: accent + "1A" }]}>
-            <Feather name={icon} size={14} color={accent} />
-          </View>
-          <Text style={[styles.sectionLabel, { color: colors.textPrimary }]}>{label}</Text>
-          <Text style={[styles.sectionCount, { color: colors.textMuted }]}>
-            {total} {total === 1 ? "meta" : "metas"}
-          </Text>
-        </View>
-        <View style={styles.sectionBody}>{days.map(([d, l]) => renderDay(d, l, variant))}</View>
-      </View>
-    );
-  };
-
-  const isEmpty = goals.length === 0;
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={["top"]}>
@@ -219,6 +234,8 @@ export default function PlanejamentoScreen() {
                 styles.segmentItem,
                 { backgroundColor: active ? colors.accent : "transparent" },
               ]}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: active }}
               testID={`plan-mode-${m.key}`}
               activeOpacity={0.85}
             >
@@ -260,7 +277,13 @@ export default function PlanejamentoScreen() {
         </View>
       ) : null}
 
-      <ScrollView
+      <SectionList<SectionItem, ListSection>
+        sections={listSections}
+        keyExtractor={(item) => item[0]}
+        renderItem={renderItem}
+        renderSectionHeader={renderSectionHeader}
+        ItemSeparatorComponent={() => <View style={{ height: 16 }} />}
+        stickySectionHeadersEnabled={false}
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
         refreshControl={
@@ -270,8 +293,7 @@ export default function PlanejamentoScreen() {
             tintColor={colors.accent}
           />
         }
-      >
-        {isEmpty ? (
+        ListEmptyComponent={
           <View style={[styles.empty, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <Feather name="calendar" size={40} color={colors.textMuted} />
             <Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>
@@ -289,14 +311,8 @@ export default function PlanejamentoScreen() {
               <Text style={styles.emptyBtnText}>Criar nova meta</Text>
             </TouchableOpacity>
           </View>
-        ) : (
-          <>
-            {renderSection("Atrasadas", "alert-circle", colors.accent, sections.overdue, "overdue")}
-            {renderSection("Hoje", "sun", colors.success, sections.today, "today")}
-            {renderSection("Próximos dias", "arrow-up-right", colors.primary, sections.upcoming, "upcoming")}
-          </>
-        )}
-      </ScrollView>
+        }
+      />
     </SafeAreaView>
   );
 }
@@ -332,9 +348,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   summaryText: { fontSize: 11, fontWeight: "700", letterSpacing: 0.2 },
-  scroll: { padding: 24, paddingTop: 16, paddingBottom: 48, gap: 24 },
-  section: { gap: 12 },
-  sectionHead: { flexDirection: "row", alignItems: "center", gap: 10 },
+  scroll: { paddingHorizontal: 24, paddingTop: 16, paddingBottom: 48 },
+  sectionHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 12,
+  },
+  sectionHeadGap: { marginTop: 24 },
   sectionIcon: {
     width: 28,
     height: 28,
@@ -344,7 +365,6 @@ const styles = StyleSheet.create({
   },
   sectionLabel: { fontSize: 14, fontWeight: "800", letterSpacing: 0.2, flex: 1 },
   sectionCount: { fontSize: 11, fontWeight: "700", letterSpacing: 0.3 },
-  sectionBody: { gap: 16 },
   daySection: { gap: 10 },
   dayHeader: { flexDirection: "row", alignItems: "center", gap: 10 },
   dayDot: { width: 8, height: 8, borderRadius: 4 },

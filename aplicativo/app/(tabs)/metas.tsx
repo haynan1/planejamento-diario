@@ -12,15 +12,20 @@ import { useRouter, useFocusEffect } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 
 import { useTheme } from "@/src/theme/ThemeProvider";
-import { api, Goal } from "@/src/api/client";
+import { api, Goal, GoalFilters } from "@/src/api/client";
 import GoalCard from "@/src/components/GoalCard";
 import FilterChipRow from "@/src/components/FilterChipRow";
 import { CATEGORIES, PRIORITIES, STATUSES, Status, Priority, Category } from "@/src/constants/goals";
 import { useToast } from "@/src/components/Toast";
 import { useAchievements } from "@/src/components/AchievementProvider";
 import { cancelGoalNotification } from "@/src/notifications";
+import { addLocalDays, formatLocalISODate, parseLocalISODate, todayLocalISO } from "@/src/utils/date";
 
 type FilterTab = "status" | "prioridade" | "categoria";
+
+/** Wide enough to surface a recurring goal's full history alongside its upcoming occurrences. */
+const VISIBLE_PAST_DAYS = 365;
+const VISIBLE_FUTURE_DAYS = 30;
 
 export default function MetasScreen() {
   const { colors } = useTheme();
@@ -36,11 +41,15 @@ export default function MetasScreen() {
 
   const load = useCallback(async () => {
     try {
-      const filters: Record<string, string> = {};
+      const today = parseLocalISODate(todayLocalISO());
+      const filters: GoalFilters = {
+        date_from: formatLocalISODate(addLocalDays(today, -VISIBLE_PAST_DAYS)),
+        date_to: formatLocalISODate(addLocalDays(today, VISIBLE_FUTURE_DAYS)),
+      };
       if (statusF !== "all") filters.status = statusF;
       if (priF !== "all") filters.priority = priF;
       if (catF !== "all") filters.category = catF;
-      const data = await api.listGoals(filters as any);
+      const data = await api.listGoals(filters);
       setGoals(data);
     } catch {
       toast.show("Erro ao carregar metas", "error");
@@ -119,9 +128,9 @@ export default function MetasScreen() {
     filterTab === "status" ? statusF : filterTab === "prioridade" ? priF : catF;
 
   const setCurrent = (v: string) => {
-    if (filterTab === "status") setStatusF(v as any);
-    else if (filterTab === "prioridade") setPriF(v as any);
-    else setCatF(v as any);
+    if (filterTab === "status") setStatusF(v as Status | "all");
+    else if (filterTab === "prioridade") setPriF(v as Priority | "all");
+    else setCatF(v as Category | "all");
   };
 
   return (
@@ -136,6 +145,8 @@ export default function MetasScreen() {
         <TouchableOpacity
           onPress={() => router.push("/criar-meta")}
           style={[styles.addBtn, { backgroundColor: colors.accent }]}
+          accessibilityLabel="Criar nova meta"
+          accessibilityRole="button"
           testID="metas-add-button"
         >
           <Feather name="plus" size={20} color="#fff" />
@@ -153,6 +164,8 @@ export default function MetasScreen() {
                 styles.tab,
                 { borderBottomColor: active ? colors.accent : "transparent" },
               ]}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: active }}
               testID={`filter-tab-${t.key}`}
             >
               <Text

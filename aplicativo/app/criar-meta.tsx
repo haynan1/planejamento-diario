@@ -28,7 +28,8 @@ import { useToast } from "@/src/components/Toast";
 import { useAchievements } from "@/src/components/AchievementProvider";
 import { scheduleGoalNotification, cancelGoalNotification } from "@/src/notifications";
 import { formatGoalTimeInput, normalizeGoalTime } from "@/src/utils/time";
-import { addLocalDays, formatLocalISODate, parseLocalISODate, todayLocalISO } from "@/src/utils/date";
+import { addLocalDays, formatLocalISODate, isValidLocalISODate, parseLocalISODate, todayLocalISO } from "@/src/utils/date";
+import { haptics } from "@/src/utils/haptics";
 
 const addDays = (iso: string, n: number) => {
   return formatLocalISODate(addLocalDays(parseLocalISODate(iso), n));
@@ -103,6 +104,10 @@ export default function CriarMetaScreen() {
       toast.show("Informe um título para a meta", "error");
       return;
     }
+    if (!isValidLocalISODate(date)) {
+      toast.show("Informe uma data válida no formato AAAA-MM-DD", "error");
+      return;
+    }
     const normalizedTime = normalizeGoalTime(time);
     if (time.trim() && !normalizedTime) {
       toast.show("Informe um horário válido no formato HH:MM", "error");
@@ -123,6 +128,7 @@ export default function CriarMetaScreen() {
             ...(recurrence === "forever" ? { end_date: addDays(date, 364) } : {}),
           };
 
+    haptics.select();
     setSaving(true);
     try {
       const payload: Omit<Goal, "id" | "created_at" | "completed_at"> = {
@@ -159,7 +165,7 @@ export default function CriarMetaScreen() {
       // Check achievements after saving
       checkAndCelebrate();
       router.back();
-    } catch (e: any) {
+    } catch (e: unknown) {
       if (e instanceof FreeLimitError) {
         toast.show(e.message, "error");
         // Open paywall right after toast appears
@@ -182,6 +188,8 @@ export default function CriarMetaScreen() {
           <TouchableOpacity
             onPress={() => router.back()}
             style={[styles.headerBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            accessibilityLabel="Fechar"
+            accessibilityRole="button"
             testID="modal-close"
           >
             <Feather name="x" size={18} color={colors.textPrimary} />
@@ -246,6 +254,8 @@ export default function CriarMetaScreen() {
                         borderColor: active ? colors.accent : colors.border,
                       },
                     ]}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: active }}
                     testID={`date-${d.key}`}
                   >
                     <Text style={{ color: active ? "#fff" : colors.textSecondary, fontWeight: "700", fontSize: 13 }}>
@@ -260,12 +270,23 @@ export default function CriarMetaScreen() {
               onChangeText={setDate}
               placeholder="AAAA-MM-DD"
               placeholderTextColor={colors.textMuted}
+              keyboardType="numbers-and-punctuation"
               style={[
                 styles.input,
-                { color: colors.textPrimary, backgroundColor: colors.surface, borderColor: colors.border, marginTop: 8 },
+                {
+                  color: colors.textPrimary,
+                  backgroundColor: colors.surface,
+                  borderColor: date.trim() && !isValidLocalISODate(date) ? colors.accent : colors.border,
+                  marginTop: 8,
+                },
               ]}
               testID="input-date"
             />
+            {date.trim() && !isValidLocalISODate(date) ? (
+              <Text style={[styles.helper, { color: colors.accent }]}>
+                Use o formato AAAA-MM-DD, ex: 2026-06-08
+              </Text>
+            ) : null}
           </View>
 
           <View style={styles.field}>
@@ -300,6 +321,8 @@ export default function CriarMetaScreen() {
                         borderColor: active ? colors.accent : colors.border,
                       },
                     ]}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: active }}
                     testID={`recurrence-${option.key}`}
                   >
                     <Feather name={option.key === "none" ? "x-circle" : "repeat"} size={14} color={active ? "#fff" : colors.textSecondary} />
@@ -358,6 +381,8 @@ export default function CriarMetaScreen() {
                         borderColor: active ? p.color : colors.border,
                       },
                     ]}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: active }}
                     testID={`priority-${p.key}`}
                   >
                     <Text style={{ color: active ? "#fff" : colors.textSecondary, fontWeight: "700", fontSize: 13 }}>
@@ -385,6 +410,8 @@ export default function CriarMetaScreen() {
                         borderColor: active ? colors.primary : colors.border,
                       },
                     ]}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: active }}
                     testID={`category-${c.key}`}
                   >
                     <Feather name={c.icon as any} size={14} color={active ? "#fff" : colors.textSecondary} />
@@ -419,6 +446,8 @@ export default function CriarMetaScreen() {
                         borderColor: active ? colors.success : colors.border,
                       },
                     ]}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: active }}
                     testID={`status-${s.key}`}
                   >
                     <Text style={{ color: active ? "#fff" : colors.textSecondary, fontWeight: "700", fontSize: 12 }}>
