@@ -1,12 +1,13 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { Priority, Status, Category, CATEGORIES, PRIORITIES } from "@/src/constants/goals";
+import { APP_STORAGE_KEYS, STORAGE_KEYS } from "@/src/constants/storage";
 import { addLocalDays, formatLocalISODate, parseLocalISODate, todayLocalISO } from "@/src/utils/date";
 
-const GOALS_KEY = "rocket_forward:goals";
-const PROFILE_KEY = "rocket_forward:profile";
-const ACHIEVEMENTS_KEY = "rocket_forward:achievements";
-const LEVEL_KEY = "rocket_forward:level";
+const GOALS_KEY = STORAGE_KEYS.goals;
+const PROFILE_KEY = STORAGE_KEYS.profile;
+const ACHIEVEMENTS_KEY = STORAGE_KEYS.achievements;
+const LEVEL_KEY = STORAGE_KEYS.level;
 const FREE_ACTIVE_GOAL_LIMIT = 5;
 const RECURRENCE_ID_SEPARATOR = "::";
 const RECURRING_LOOKAHEAD_DAYS = 30;
@@ -111,8 +112,11 @@ export interface AchievementsResponse {
 export interface MonthlyReport {
   by_category: Record<string, number>;
   by_priority: Record<string, number>;
-  evolution: { date: string; count: number }[];
+  evolution: { date: string; count: number; late_count: number; missed_count: number }[];
+  total_due_30d: number;
   total_completed_30d: number;
+  total_late_completed_30d: number;
+  total_missed_30d: number;
 }
 
 export class FreeLimitError extends Error {
@@ -397,6 +401,22 @@ function applyFilters(goals: Goal[], filters: GoalFilters) {
   });
 }
 
+function completedLocalDate(goal: Goal) {
+  if (!goal.completed_at) return null;
+  const date = new Date(goal.completed_at);
+  if (Number.isNaN(date.getTime())) return null;
+  return formatLocalISODate(date);
+}
+
+function wasCompletedLate(goal: Goal) {
+  const completedDate = completedLocalDate(goal);
+  return Boolean(completedDate && completedDate > goal.date);
+}
+
+function emptyReportDay(date: string) {
+  return { date, count: 0, late_count: 0, missed_count: 0 };
+}
+
 function productiveDates(goals: Goal[]) {
   return new Set(goals.filter((g) => g.status === "concluida").map((g) => g.date));
 }
@@ -570,7 +590,10 @@ export const api = {
     const occurrence = parseOccurrenceId(id);
     const goal = goals.find((g) => g.id === (occurrence?.goalId ?? id));
     if (!goal) throw new Error("Meta nao encontrada");
-    return occurrence ? expandRecurringGoal(goal, occurrence.date, occurrence.date)[0] : goal;
+    if (!occurrence) return goal;
+    const occurrenceGoal = expandRecurringGoal(goal, occurrence.date, occurrence.date)[0];
+    if (!occurrenceGoal) throw new Error("Ocorrencia nao encontrada");
+    return occurrenceGoal;
   },
 
   listGoals: async (filters: GoalFilters = {}): Promise<Goal[]> => {
@@ -668,7 +691,9 @@ export const api = {
     const index = goals.findIndex((g) => g.id === goalId);
     const goal = goals[index];
 
-    if (!goal?.recurrence) {
+    if (!goal) throw new Error("Meta nao encontrada");
+
+    if (!goal.recurrence) {
       await saveGoals(goals.filter((g) => g.id !== goalId));
       return { ok: true };
     }
@@ -715,7 +740,7 @@ export const api = {
   },
 
   clearData: async (): Promise<{ ok: boolean }> => {
-    await AsyncStorage.multiRemove([GOALS_KEY, ACHIEVEMENTS_KEY, LEVEL_KEY]);
+    await AsyncStorage.multiRemove(APP_STORAGE_KEYS);
     expansionCache.clear();
     return { ok: true };
   },
@@ -769,31 +794,46 @@ export const api = {
 
   monthlyReport: async (): Promise<MonthlyReport> => {
     const goals = await getGoals();
-    const today = parseLocalISODate(todayLocalISO());
+    const todayIso = todayLocalISO();
+    const today = parseLocalISODate(todayIso);
     const start = formatLocalISODate(addLocalDays(today, -29));
-    const expandedGoals = expandGoals(goals, { date_from: start, date_to: formatLocalISODate(today) });
-    const completed = expandedGoals.filter((g) => g.status === "concluida" && g.date >= start);
+    const expandedGoals = expandGoals(goals, { date_from: start, date_to: todayIso });
+    const due = expandedGoals.filter((g) => g.date >= start && g.date <= todayIso);
+    const completed = due.filter((g) => g.status === "concluida");
+    const lateCompleted = completed.filter(wasCompletedLate);
+    const missed = due.filter((g) => g.date < todayIso && g.status !== "concluida");
     const by_category: Record<string, number> = {};
     const by_priority: Record<string, number> = {};
+    const evolutionByDate = new Map<string, { date: string; count: number; late_count: number; missed_count: number }>();
 
-    for (const goal of completed) {
-      by_category[goal.category] = (by_category[goal.category] ?? 0) + 1;
-      by_priority[goal.priority] = (by_priority[goal.priority] ?? 0) + 1;
+    for (const goal of due) {
+      const day = evolutionByDate.get(goal.date) ?? emptyReportDay(goal.date);
+
+      if (goal.status === "concluida") {
+        day.count += 1;
+        if (wasCompletedLate(goal)) day.late_count += 1;
+        by_category[goal.category] = (by_category[goal.category] ?? 0) + 1;
+        by_priority[goal.priority] = (by_priority[goal.priority] ?? 0) + 1;
+      } else if (goal.date < todayIso) {
+        day.missed_count += 1;
+      }
+
+      evolutionByDate.set(goal.date, day);
     }
 
     const evolution = Array.from({ length: 30 }, (_, index) => {
       const date = formatLocalISODate(addLocalDays(today, index - 29));
-      return {
-        date,
-        count: completed.filter((g) => g.date === date).length,
-      };
+      return evolutionByDate.get(date) ?? emptyReportDay(date);
     });
 
     return {
       by_category,
       by_priority,
       evolution,
+      total_due_30d: due.length,
       total_completed_30d: completed.length,
+      total_late_completed_30d: lateCompleted.length,
+      total_missed_30d: missed.length,
     };
   },
 };

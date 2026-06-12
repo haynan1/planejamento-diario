@@ -7,6 +7,7 @@ import {
   recurrenceMatchesDate,
   Goal,
 } from "@/src/api/client";
+import { STORAGE_KEYS } from "@/src/constants/storage";
 import { addLocalDays, formatLocalISODate, parseLocalISODate, todayLocalISO } from "@/src/utils/date";
 
 const NOW = new Date("2026-06-08T09:00:00");
@@ -147,6 +148,14 @@ describe("updateGoal", () => {
   it("throws when the goal does not exist", async () => {
     await expect(api.updateGoal("does-not-exist", { status: "concluida" })).rejects.toThrow();
   });
+
+  it("throws when a requested recurring occurrence is outside the series", async () => {
+    const template = await api.createGoal(
+      baseGoal({ title: "Academia", recurrence: { type: "weekdays", start_date: iso(0) } }),
+    );
+
+    await expect(api.getGoal(`${template.id}::${iso(5)}`)).rejects.toThrow("Ocorrencia nao encontrada");
+  });
 });
 
 describe("deleteGoal", () => {
@@ -173,6 +182,10 @@ describe("deleteGoal", () => {
     );
     await api.deleteGoal(template.id);
     await expect(api.getGoal(template.id)).rejects.toThrow();
+  });
+
+  it("throws when deleting a goal that does not exist", async () => {
+    await expect(api.deleteGoal("does-not-exist")).rejects.toThrow("Meta nao encontrada");
   });
 });
 
@@ -309,11 +322,52 @@ describe("monthlyReport", () => {
     expect(report.evolution.find((e) => e.date === iso(-1))?.count).toBe(1);
     expect(report.evolution.find((e) => e.date === iso(-2))?.count).toBe(1);
   });
+
+  it("separates on-time completions, late completions and missed goals", async () => {
+    jest.setSystemTime(parseLocalISODate(iso(-2)));
+    const onTime = await api.createGoal(baseGoal({ title: "No prazo", date: iso(-2) }));
+    await api.updateGoal(onTime.id, { status: "concluida" });
+
+    jest.setSystemTime(NOW);
+    const late = await api.createGoal(baseGoal({ title: "Atrasada", date: iso(-3) }));
+    await api.updateGoal(late.id, { status: "concluida" });
+    await api.createGoal(baseGoal({ title: "Nao feita", date: iso(-1), status: "pendente" }));
+
+    const report = await api.monthlyReport();
+    expect(report.total_due_30d).toBe(3);
+    expect(report.total_completed_30d).toBe(2);
+    expect(report.total_late_completed_30d).toBe(1);
+    expect(report.total_missed_30d).toBe(1);
+    expect(report.evolution.find((e) => e.date === iso(-3))?.late_count).toBe(1);
+    expect(report.evolution.find((e) => e.date === iso(-1))?.missed_count).toBe(1);
+  });
+
+  it("reports missed occurrences from recurring goals without storing each occurrence", async () => {
+    await api.createGoal(
+      baseGoal({ title: "Ritual", date: iso(-2), recurrence: { type: "count", start_date: iso(-2), days: 3 } }),
+    );
+
+    const report = await api.monthlyReport();
+    expect(report.total_due_30d).toBe(3);
+    expect(report.total_missed_30d).toBe(2);
+    expect(report.evolution.find((e) => e.date === iso(-2))?.missed_count).toBe(1);
+    expect(report.evolution.find((e) => e.date === iso(-1))?.missed_count).toBe(1);
+    expect(report.evolution.find((e) => e.date === iso(0))?.missed_count).toBe(0);
+  });
 });
 
 describe("clearData", () => {
-  it("wipes goals and achievement/level state", async () => {
+  it("wipes goals and persisted app preferences", async () => {
     await api.createGoal(baseGoal({ title: "Para apagar", status: "concluida" }));
+    await api.updateProfile({
+      name: "Usuario teste",
+      motivational_phrases_enabled: false,
+      is_premium: true,
+      notifications_enabled: true,
+      avatar_base64: "data:image/jpeg;base64,abc",
+    });
+    await AsyncStorage.setItem(STORAGE_KEYS.themeMode, JSON.stringify("light"));
+    await AsyncStorage.setItem(STORAGE_KEYS.goalNotificationIds, JSON.stringify(JSON.stringify({ goal: ["notif-id"] })));
     await api.checkAchievements();
     await api.checkLevelUp();
 
@@ -321,5 +375,14 @@ describe("clearData", () => {
 
     expect(await api.listGoals({ date_eq: todayLocalISO() })).toHaveLength(0);
     expect((await api.listAchievements()).unlocked).toBe(0);
+    expect(await api.getProfile()).toMatchObject({
+      name: "Astronauta",
+      motivational_phrases_enabled: true,
+      is_premium: false,
+      notifications_enabled: false,
+      avatar_base64: null,
+    });
+    expect(await AsyncStorage.getItem(STORAGE_KEYS.themeMode)).toBeNull();
+    expect(await AsyncStorage.getItem(STORAGE_KEYS.goalNotificationIds)).toBeNull();
   });
 });

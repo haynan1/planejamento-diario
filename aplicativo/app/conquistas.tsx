@@ -4,20 +4,18 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  TouchableOpacity,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 
 import { useTheme } from "@/src/theme/ThemeProvider";
 import { api, Achievement } from "@/src/api/client";
 import { iconMap } from "@/src/components/AchievementProvider";
+import ModalHeader from "@/src/components/ModalHeader";
 
 export default function ConquistasScreen() {
   const { colors } = useTheme();
-  const router = useRouter();
   const [items, setItems] = useState<Achievement[]>([]);
   const [unlocked, setUnlocked] = useState(0);
   const [total, setTotal] = useState(0);
@@ -53,19 +51,7 @@ export default function ConquistasScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={["top", "bottom"]}>
-      <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => router.back()}
-          style={[styles.headerBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
-          accessibilityLabel="Fechar"
-          accessibilityRole="button"
-          testID="conquistas-close"
-        >
-          <Feather name="x" size={18} color={colors.textPrimary} />
-        </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Conquistas</Text>
-        <View style={{ width: 40 }} />
-      </View>
+      <ModalHeader title="Conquistas" closeTestID="conquistas-close" />
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <LinearGradient
@@ -162,16 +148,6 @@ export default function ConquistasScreen() {
 }
 
 const styles = StyleSheet.create({
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 24,
-    paddingTop: 8,
-    paddingBottom: 12,
-  },
-  headerBtn: { width: 40, height: 40, borderRadius: 20, borderWidth: 1, alignItems: "center", justifyContent: "center" },
-  headerTitle: { fontSize: 18, fontWeight: "800", letterSpacing: -0.3 },
   scroll: { padding: 24, paddingBottom: 32, gap: 20 },
   heroCard: { padding: 28, borderRadius: 20, alignItems: "center", gap: 8 },
   heroValue: { color: "#fff", fontSize: 40, fontWeight: "800", letterSpacing: -1 },

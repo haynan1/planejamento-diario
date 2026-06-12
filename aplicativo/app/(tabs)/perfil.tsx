@@ -10,6 +10,7 @@ import {
   Linking,
   Platform,
   ActivityIndicator,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useRouter } from "expo-router";
@@ -29,7 +30,7 @@ import {
 import { haptics } from "@/src/utils/haptics";
 
 export default function PerfilScreen() {
-  const { colors, mode, setMode } = useTheme();
+  const { colors, mode, setMode, resetMode } = useTheme();
   const router = useRouter();
   const toast = useToast();
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -94,11 +95,23 @@ export default function PerfilScreen() {
     try {
       await cancelAllGoalNotifications();
       await api.clearData();
+      resetMode();
       toast.show("Dados limpos com sucesso", "success");
       load();
     } catch {
       toast.show("Erro ao limpar dados", "error");
     }
+  };
+
+  const confirmClearData = () => {
+    Alert.alert(
+      "Limpar todos os dados?",
+      "Isso remove metas, conquistas, perfil, preferências e notificações agendadas.",
+      [
+        { text: "Cancelar", style: "cancel" },
+        { text: "Limpar", style: "destructive", onPress: clearData },
+      ],
+    );
   };
 
   const pickAvatar = async () => {
@@ -500,7 +513,7 @@ export default function PerfilScreen() {
         <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>DADOS</Text>
 
         <TouchableOpacity
-          onPress={clearData}
+          onPress={confirmClearData}
           style={[styles.dangerCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
           testID="clear-data-button"
         >

@@ -7,13 +7,13 @@ import {
   TouchableOpacity,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 
 import { useTheme } from "@/src/theme/ThemeProvider";
 import { api, Profile } from "@/src/api/client";
 import { useToast } from "@/src/components/Toast";
+import ModalHeader from "@/src/components/ModalHeader";
 import { cancelAllGoalNotifications } from "@/src/notifications";
 import { haptics } from "@/src/utils/haptics";
 
@@ -27,7 +27,6 @@ const FEATURES = [
 
 export default function PremiumScreen() {
   const { colors } = useTheme();
-  const router = useRouter();
   const toast = useToast();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(false);
@@ -74,18 +73,7 @@ export default function PremiumScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={["top", "bottom"]}>
-      <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => router.back()}
-          style={[styles.headerBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
-          accessibilityLabel="Fechar"
-          accessibilityRole="button"
-          testID="premium-close"
-        >
-          <Feather name="x" size={18} color={colors.textPrimary} />
-        </TouchableOpacity>
-        <View style={{ width: 40 }} />
-      </View>
+      <ModalHeader closeTestID="premium-close" />
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <LinearGradient
@@ -170,18 +158,6 @@ export default function PremiumScreen() {
 }
 
 const styles = StyleSheet.create({
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 24,
-    paddingTop: 8,
-    paddingBottom: 8,
-  },
-  headerBtn: {
-    width: 40, height: 40, borderRadius: 20, borderWidth: 1,
-    alignItems: "center", justifyContent: "center",
-  },
   scroll: { padding: 24, paddingTop: 8, paddingBottom: 32, gap: 20 },
   hero: { padding: 28, borderRadius: 24, alignItems: "center", gap: 8 },
   badge: {

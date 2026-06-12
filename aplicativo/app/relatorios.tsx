@@ -5,6 +5,7 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -14,12 +15,14 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useTheme } from "@/src/theme/ThemeProvider";
 import { api, MonthlyReport, Profile } from "@/src/api/client";
 import { CATEGORIES, PRIORITIES } from "@/src/constants/goals";
+import ModalHeader from "@/src/components/ModalHeader";
 
 export default function RelatoriosScreen() {
   const { colors } = useTheme();
   const router = useRouter();
   const [report, setReport] = useState<MonthlyReport | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
     try {
@@ -28,6 +31,8 @@ export default function RelatoriosScreen() {
       setProfile(p);
     } catch {
       // ignore
+    } finally {
+      setLoading(false);
     }
   }, []);
 
@@ -39,24 +44,24 @@ export default function RelatoriosScreen() {
 
   const maxCat = Math.max(1, ...Object.values(report?.by_category ?? {}));
   const maxPri = Math.max(1, ...Object.values(report?.by_priority ?? {}));
-  const maxEvo = Math.max(1, ...(report?.evolution.map((e) => e.count) ?? [1]));
+  const maxEvo = Math.max(
+    1,
+    ...(report?.evolution.map((e) => Math.max(e.count, e.late_count, e.missed_count)) ?? [1]),
+  );
+  const onTimeCompleted = Math.max(
+    0,
+    (report?.total_completed_30d ?? 0) - (report?.total_late_completed_30d ?? 0),
+  );
 
-  if (!isPremium) {
-    return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={["top", "bottom"]}>
-        <View style={styles.header}>
-          <TouchableOpacity
-            onPress={() => router.back()}
-            style={[styles.headerBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
-            accessibilityLabel="Fechar"
-            accessibilityRole="button"
-            testID="relatorios-close"
-          >
-            <Feather name="x" size={18} color={colors.textPrimary} />
-          </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Relatórios</Text>
-          <View style={{ width: 40 }} />
+  return (
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={["top", "bottom"]}>
+      <ModalHeader title="Relatórios" closeTestID="relatorios-close" />
+
+      {loading ? (
+        <View style={styles.loading}>
+          <ActivityIndicator color={colors.accent} />
         </View>
+      ) : !isPremium ? (
         <View style={styles.paywall}>
           <LinearGradient
             colors={[colors.accent, colors.primary]}
@@ -81,130 +86,161 @@ export default function RelatoriosScreen() {
             <Text style={styles.upgradeText}>Conhecer o Premium</Text>
           </TouchableOpacity>
         </View>
-      </SafeAreaView>
-    );
-  }
-
-  return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={["top", "bottom"]}>
-      <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => router.back()}
-          style={[styles.headerBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
-          accessibilityLabel="Fechar"
-          accessibilityRole="button"
-          testID="relatorios-close"
-        >
-          <Feather name="x" size={18} color={colors.textPrimary} />
-        </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Relatórios</Text>
-        <View style={{ width: 40 }} />
-      </View>
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        <View style={[styles.summary, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Últimos 30 dias</Text>
-          <Text style={[styles.summaryValue, { color: colors.textPrimary }]}>
-            {report?.total_completed_30d ?? 0}
-          </Text>
-          <Text style={[styles.summaryDesc, { color: colors.textSecondary }]}>metas concluídas</Text>
-        </View>
-
-        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>Evolução diária</Text>
-          <View style={styles.evolutionRow}>
-            {(report?.evolution ?? []).map((e, idx) => {
-              const h = (e.count / maxEvo) * 80;
-              return (
-                <View
-                  key={idx}
-                  style={[
-                    styles.evoBar,
-                    { height: Math.max(3, h), backgroundColor: e.count > 0 ? colors.accent : colors.border },
-                  ]}
-                />
-              );
-            })}
+      ) : (
+        <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+          <View style={[styles.summary, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Últimos 30 dias</Text>
+            <Text style={[styles.summaryValue, { color: colors.textPrimary }]}>
+              {report?.total_completed_30d ?? 0}
+            </Text>
+            <Text style={[styles.summaryDesc, { color: colors.textSecondary }]}>metas concluídas</Text>
+            <View style={styles.summaryMetrics}>
+              <View style={styles.summaryMetric}>
+                <Text style={[styles.summaryMetricValue, { color: colors.textPrimary }]}>
+                  {report?.total_due_30d ?? 0}
+                </Text>
+                <Text style={[styles.summaryMetricLabel, { color: colors.textMuted }]}>vencidas</Text>
+              </View>
+              <View style={[styles.summaryDivider, { backgroundColor: colors.border }]} />
+              <View style={styles.summaryMetric}>
+                <Text style={[styles.summaryMetricValue, { color: colors.success }]}>
+                  {onTimeCompleted}
+                </Text>
+                <Text style={[styles.summaryMetricLabel, { color: colors.textMuted }]}>no prazo</Text>
+              </View>
+              <View style={[styles.summaryDivider, { backgroundColor: colors.border }]} />
+              <View style={styles.summaryMetric}>
+                <Text style={[styles.summaryMetricValue, { color: colors.warning }]}>
+                  {report?.total_late_completed_30d ?? 0}
+                </Text>
+                <Text style={[styles.summaryMetricLabel, { color: colors.textMuted }]}>com atraso</Text>
+              </View>
+              <View style={[styles.summaryDivider, { backgroundColor: colors.border }]} />
+              <View style={styles.summaryMetric}>
+                <Text style={[styles.summaryMetricValue, { color: colors.accent }]}>
+                  {report?.total_missed_30d ?? 0}
+                </Text>
+                <Text style={[styles.summaryMetricLabel, { color: colors.textMuted }]}>não feitas</Text>
+              </View>
+            </View>
           </View>
-          <View style={styles.evoFooter}>
-            <Text style={[styles.evoLabel, { color: colors.textMuted }]}>30 dias atrás</Text>
-            <Text style={[styles.evoLabel, { color: colors.textMuted }]}>Hoje</Text>
-          </View>
-        </View>
 
-        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>Por categoria</Text>
-          <View style={{ gap: 8 }}>
-            {CATEGORIES.map((c) => {
-              const count = report?.by_category?.[c.key] ?? 0;
-              const w = (count / maxCat) * 100;
-              return (
-                <View key={c.key} style={styles.barRow}>
-                  <Text style={[styles.barLabel, { color: colors.textSecondary }]}>
-                    {c.label}
-                  </Text>
-                  <View style={[styles.barTrack, { backgroundColor: colors.surfaceElevated }]}>
-                    <View
-                      style={[
-                        styles.barFill,
-                        { width: `${w}%`, backgroundColor: colors.primary },
-                      ]}
-                    />
+          <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>Evolução diária</Text>
+            <View style={styles.evolutionRow}>
+              {(report?.evolution ?? []).map((e, idx) => {
+                const h = (Math.max(e.count, e.late_count, e.missed_count) / maxEvo) * 80;
+                const barColor =
+                  e.missed_count > 0
+                    ? colors.accent
+                    : e.late_count > 0
+                      ? colors.warning
+                      : e.count > 0
+                        ? colors.success
+                        : colors.border;
+                return (
+                  <View
+                    key={idx}
+                    style={[
+                      styles.evoBar,
+                      { height: Math.max(3, h), backgroundColor: barColor },
+                    ]}
+                  />
+                );
+              })}
+            </View>
+            <View style={styles.legendRow}>
+              <View style={styles.legendItem}>
+                <View style={[styles.legendDot, { backgroundColor: colors.success }]} />
+                <Text style={[styles.legendText, { color: colors.textMuted }]}>Concluída</Text>
+              </View>
+              <View style={styles.legendItem}>
+                <View style={[styles.legendDot, { backgroundColor: colors.warning }]} />
+                <Text style={[styles.legendText, { color: colors.textMuted }]}>Com atraso</Text>
+              </View>
+              <View style={styles.legendItem}>
+                <View style={[styles.legendDot, { backgroundColor: colors.accent }]} />
+                <Text style={[styles.legendText, { color: colors.textMuted }]}>Não feita</Text>
+              </View>
+            </View>
+            <View style={styles.evoFooter}>
+              <Text style={[styles.evoLabel, { color: colors.textMuted }]}>30 dias atrás</Text>
+              <Text style={[styles.evoLabel, { color: colors.textMuted }]}>Hoje</Text>
+            </View>
+          </View>
+
+          <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>Por categoria</Text>
+            <View style={{ gap: 8 }}>
+              {CATEGORIES.map((c) => {
+                const count = report?.by_category?.[c.key] ?? 0;
+                const w = (count / maxCat) * 100;
+                return (
+                  <View key={c.key} style={styles.barRow}>
+                    <Text style={[styles.barLabel, { color: colors.textSecondary }]}>
+                      {c.label}
+                    </Text>
+                    <View style={[styles.barTrack, { backgroundColor: colors.surfaceElevated }]}>
+                      <View
+                        style={[
+                          styles.barFill,
+                          { width: `${w}%`, backgroundColor: colors.primary },
+                        ]}
+                      />
+                    </View>
+                    <Text style={[styles.barCount, { color: colors.textPrimary }]}>{count}</Text>
                   </View>
-                  <Text style={[styles.barCount, { color: colors.textPrimary }]}>{count}</Text>
-                </View>
-              );
-            })}
+                );
+              })}
+            </View>
           </View>
-        </View>
 
-        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>Por prioridade</Text>
-          <View style={{ gap: 8 }}>
-            {PRIORITIES.map((p) => {
-              const count = report?.by_priority?.[p.key] ?? 0;
-              const w = (count / maxPri) * 100;
-              return (
-                <View key={p.key} style={styles.barRow}>
-                  <Text style={[styles.barLabel, { color: colors.textSecondary }]}>
-                    {p.label}
-                  </Text>
-                  <View style={[styles.barTrack, { backgroundColor: colors.surfaceElevated }]}>
-                    <View style={[styles.barFill, { width: `${w}%`, backgroundColor: p.color }]} />
+          <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>Por prioridade</Text>
+            <View style={{ gap: 8 }}>
+              {PRIORITIES.map((p) => {
+                const count = report?.by_priority?.[p.key] ?? 0;
+                const w = (count / maxPri) * 100;
+                return (
+                  <View key={p.key} style={styles.barRow}>
+                    <Text style={[styles.barLabel, { color: colors.textSecondary }]}>
+                      {p.label}
+                    </Text>
+                    <View style={[styles.barTrack, { backgroundColor: colors.surfaceElevated }]}>
+                      <View style={[styles.barFill, { width: `${w}%`, backgroundColor: p.color }]} />
+                    </View>
+                    <Text style={[styles.barCount, { color: colors.textPrimary }]}>{count}</Text>
                   </View>
-                  <Text style={[styles.barCount, { color: colors.textPrimary }]}>{count}</Text>
-                </View>
-              );
-            })}
+                );
+              })}
+            </View>
           </View>
-        </View>
-      </ScrollView>
+        </ScrollView>
+      )}
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 24,
-    paddingTop: 8,
-    paddingBottom: 12,
-  },
-  headerBtn: {
-    width: 40, height: 40, borderRadius: 20, borderWidth: 1,
-    alignItems: "center", justifyContent: "center",
-  },
-  headerTitle: { fontSize: 18, fontWeight: "800", letterSpacing: -0.3 },
+  loading: { flex: 1, alignItems: "center", justifyContent: "center" },
   scroll: { padding: 24, paddingBottom: 32, gap: 16 },
   summary: { padding: 24, borderRadius: 20, borderWidth: 1, alignItems: "center" },
   summaryLabel: { fontSize: 11, fontWeight: "800", letterSpacing: 1.5, textTransform: "uppercase" },
   summaryValue: { fontSize: 56, fontWeight: "800", letterSpacing: -2, marginTop: 4 },
   summaryDesc: { fontSize: 13, fontWeight: "500" },
+  summaryMetrics: { flexDirection: "row", alignItems: "center", alignSelf: "stretch", marginTop: 18 },
+  summaryMetric: { flex: 1, alignItems: "center", gap: 3 },
+  summaryMetricValue: { fontSize: 18, fontWeight: "800" },
+  summaryMetricLabel: { fontSize: 10, fontWeight: "700", textTransform: "uppercase", textAlign: "center" },
+  summaryDivider: { width: 1, height: 28 },
   card: { padding: 20, borderRadius: 16, borderWidth: 1, gap: 12 },
   cardTitle: { fontSize: 16, fontWeight: "800" },
   evolutionRow: { flexDirection: "row", alignItems: "flex-end", gap: 2, height: 90 },
   evoBar: { flex: 1, borderRadius: 2 },
+  legendRow: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  legendItem: { flexDirection: "row", alignItems: "center", gap: 5 },
+  legendDot: { width: 7, height: 7, borderRadius: 4 },
+  legendText: { fontSize: 10, fontWeight: "700" },
   evoFooter: { flexDirection: "row", justifyContent: "space-between" },
   evoLabel: { fontSize: 10, fontWeight: "600" },
   barRow: { flexDirection: "row", alignItems: "center", gap: 12 },

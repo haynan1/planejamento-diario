@@ -17,9 +17,8 @@ import GoalCard from "@/src/components/GoalCard";
 import FilterChipRow from "@/src/components/FilterChipRow";
 import { CATEGORIES, PRIORITIES, STATUSES, Status, Priority, Category } from "@/src/constants/goals";
 import { useToast } from "@/src/components/Toast";
-import { useAchievements } from "@/src/components/AchievementProvider";
-import { cancelGoalNotification } from "@/src/notifications";
 import { addLocalDays, formatLocalISODate, parseLocalISODate, todayLocalISO } from "@/src/utils/date";
+import { useGoalActions } from "@/src/hooks/use-goal-actions";
 
 type FilterTab = "status" | "prioridade" | "categoria";
 
@@ -31,7 +30,6 @@ export default function MetasScreen() {
   const { colors } = useTheme();
   const router = useRouter();
   const toast = useToast();
-  const { checkAndCelebrate, celebrateGoalCompletion } = useAchievements();
   const [goals, setGoals] = useState<Goal[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [filterTab, setFilterTab] = useState<FilterTab>("status");
@@ -64,45 +62,7 @@ export default function MetasScreen() {
     setRefreshing(false);
   }, [load]);
 
-  const toggleComplete = async (g: Goal) => {
-    try {
-      const next = g.status === "concluida" ? "pendente" : "concluida";
-      await api.updateGoal(g.id, { status: next });
-      if (next === "concluida") {
-        await cancelGoalNotification(g.id);
-      }
-      toast.show(next === "concluida" ? "Meta concluída!" : "Meta reaberta", "success");
-      load();
-      if (next === "concluida") {
-        celebrateGoalCompletion(g.title);
-        checkAndCelebrate();
-      }
-    } catch {
-      toast.show("Erro ao atualizar", "error");
-    }
-  };
-
-  const cycleStatus = async (g: Goal) => {
-    const order = ["pendente", "em_andamento", "concluida"] as const;
-    const next = order[(order.indexOf(g.status) + 1) % order.length];
-    try {
-      await api.updateGoal(g.id, { status: next });
-      load();
-    } catch {
-      toast.show("Erro ao atualizar", "error");
-    }
-  };
-
-  const onDelete = async (g: Goal) => {
-    try {
-      await api.deleteGoal(g.id);
-      await cancelGoalNotification(g.id);
-      toast.show(g.recurrence ? "Meta recorrente encerrada" : "Meta excluída", "success");
-      load();
-    } catch {
-      toast.show("Erro ao excluir", "error");
-    }
-  };
+  const { toggleComplete, cycleStatus, deleteGoal } = useGoalActions({ reload: load });
 
   const onEdit = (g: Goal) => {
     router.push({ pathname: "/criar-meta", params: { id: g.series_id ?? g.id } });
@@ -206,7 +166,7 @@ export default function MetasScreen() {
             onToggleComplete={toggleComplete}
             onCycleStatus={cycleStatus}
             onEdit={onEdit}
-            onDelete={onDelete}
+            onDelete={deleteGoal}
           />
         )}
         ItemSeparatorComponent={() => <View style={{ height: 12 }} />}

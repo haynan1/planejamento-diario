@@ -26,6 +26,7 @@ import {
 } from "@/src/constants/goals";
 import { useToast } from "@/src/components/Toast";
 import { useAchievements } from "@/src/components/AchievementProvider";
+import ModalHeader from "@/src/components/ModalHeader";
 import { scheduleGoalNotification, cancelGoalNotification } from "@/src/notifications";
 import { formatGoalTimeInput, normalizeGoalTime } from "@/src/utils/time";
 import { addLocalDays, formatLocalISODate, isValidLocalISODate, parseLocalISODate, todayLocalISO } from "@/src/utils/date";
@@ -184,21 +185,10 @@ export default function CriarMetaScreen() {
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        <View style={styles.header}>
-          <TouchableOpacity
-            onPress={() => router.back()}
-            style={[styles.headerBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
-            accessibilityLabel="Fechar"
-            accessibilityRole="button"
-            testID="modal-close"
-          >
-            <Feather name="x" size={18} color={colors.textPrimary} />
-          </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>
-            {editingId ? "Editar meta" : "Criar nova meta"}
-          </Text>
-          <View style={{ width: 40 }} />
-        </View>
+        <ModalHeader
+          title={editingId ? "Editar meta" : "Criar nova meta"}
+          closeTestID="modal-close"
+        />
 
         <ScrollView
           contentContainerStyle={styles.scroll}
@@ -483,23 +473,6 @@ export default function CriarMetaScreen() {
 }
 
 const styles = StyleSheet.create({
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 24,
-    paddingTop: 8,
-    paddingBottom: 12,
-  },
-  headerBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    borderWidth: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  headerTitle: { fontSize: 18, fontWeight: "800", letterSpacing: -0.3 },
   scroll: { padding: 24, paddingBottom: 24, gap: 20 },
   field: { gap: 8 },
   label: { fontSize: 11, fontWeight: "800", letterSpacing: 1, textTransform: "uppercase" },

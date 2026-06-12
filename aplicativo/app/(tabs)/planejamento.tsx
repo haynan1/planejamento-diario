@@ -15,9 +15,8 @@ import { useTheme } from "@/src/theme/ThemeProvider";
 import { api, Goal } from "@/src/api/client";
 import GoalCard from "@/src/components/GoalCard";
 import { useToast } from "@/src/components/Toast";
-import { useAchievements } from "@/src/components/AchievementProvider";
-import { cancelGoalNotification } from "@/src/notifications";
 import { formatLocalISODate, parseLocalISODate } from "@/src/utils/date";
+import { useGoalActions } from "@/src/hooks/use-goal-actions";
 
 type Mode = "hoje" | "semana" | "mes";
 type SectionItem = [string, Goal[]];
@@ -64,7 +63,6 @@ export default function PlanejamentoScreen() {
   const { colors } = useTheme();
   const router = useRouter();
   const toast = useToast();
-  const { checkAndCelebrate, celebrateGoalCompletion } = useAchievements();
   const [mode, setMode] = useState<Mode>("semana");
   const [goals, setGoals] = useState<Goal[]>([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -117,31 +115,11 @@ export default function PlanejamentoScreen() {
     0
   );
 
-  const toggleComplete = useCallback(async (g: Goal) => {
-    try {
-      const next = g.status === "concluida" ? "pendente" : "concluida";
-      await api.updateGoal(g.id, { status: next });
-      if (next === "concluida") await cancelGoalNotification(g.id);
-      load();
-      if (next === "concluida") {
-        celebrateGoalCompletion(g.title);
-        checkAndCelebrate();
-      }
-    } catch {
-      toast.show("Erro ao atualizar", "error");
-    }
-  }, [load, celebrateGoalCompletion, checkAndCelebrate, toast]);
-
-  const deleteGoal = useCallback(async (g: Goal) => {
-    try {
-      await api.deleteGoal(g.id);
-      await cancelGoalNotification(g.id);
-      toast.show(g.recurrence ? "Meta recorrente encerrada" : "Meta excluida", "success");
-      load();
-    } catch {
-      toast.show("Erro ao excluir", "error");
-    }
-  }, [load, toast]);
+  const { toggleComplete, deleteGoal } = useGoalActions({
+    reload: load,
+    completedMessage: null,
+    reopenedMessage: null,
+  });
 
   const listSections = useMemo<ListSection[]>(() => {
     const result: ListSection[] = [];

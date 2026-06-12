@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from "react";
+import { STORAGE_KEYS } from "@/src/constants/storage";
 import { storage } from "@/src/utils/storage";
 import { ThemeMode, ThemeColors, getColors } from "./index";
 
@@ -6,12 +7,13 @@ interface ThemeContextValue {
   mode: ThemeMode;
   colors: ThemeColors;
   setMode: (m: ThemeMode) => void;
+  resetMode: () => void;
   toggle: () => void;
 }
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
-const STORAGE_KEY = "rf_theme_mode";
+const STORAGE_KEY = STORAGE_KEYS.themeMode;
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [mode, setModeState] = useState<ThemeMode>("dark");
@@ -32,6 +34,10 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     storage.setItem(STORAGE_KEY, m);
   }, []);
 
+  const resetMode = useCallback(() => {
+    setModeState("dark");
+  }, []);
+
   const toggle = useCallback(() => {
     setModeState((prev) => {
       const next: ThemeMode = prev === "dark" ? "light" : "dark";
@@ -41,8 +47,8 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ mode, colors: getColors(mode), setMode, toggle }),
-    [mode, setMode, toggle]
+    () => ({ mode, colors: getColors(mode), setMode, resetMode, toggle }),
+    [mode, setMode, resetMode, toggle]
   );
 
   if (!hydrated) return null;

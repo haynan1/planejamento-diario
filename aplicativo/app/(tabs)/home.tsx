@@ -19,17 +19,15 @@ import GoalCard from "@/src/components/GoalCard";
 import PrimaryButton from "@/src/components/PrimaryButton";
 import { getDailyPhrase, getGreeting } from "@/src/constants/goals";
 import { useToast } from "@/src/components/Toast";
-import { useAchievements } from "@/src/components/AchievementProvider";
-import { cancelGoalNotification } from "@/src/notifications";
 import Avatar from "@/src/components/Avatar";
 import Mascot from "@/src/components/Mascot";
 import { todayLocalISO } from "@/src/utils/date";
+import { useGoalActions } from "@/src/hooks/use-goal-actions";
 
 export default function DashboardScreen() {
   const { colors, mode } = useTheme();
   const router = useRouter();
   const toast = useToast();
-  const { checkAndCelebrate, celebrateGoalCompletion } = useAchievements();
   const [goals, setGoals] = useState<Goal[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -65,34 +63,10 @@ export default function DashboardScreen() {
     setRefreshing(false);
   }, [load]);
 
-  const toggleComplete = async (g: Goal) => {
-    try {
-      const next = g.status === "concluida" ? "pendente" : "concluida";
-      await api.updateGoal(g.id, { status: next });
-      if (next === "concluida") {
-        await cancelGoalNotification(g.id);
-      }
-      toast.show(next === "concluida" ? "Meta concluída! Continue avançando." : "Meta reaberta", "success");
-      load();
-      if (next === "concluida") {
-        celebrateGoalCompletion(g.title);
-        checkAndCelebrate();
-      }
-    } catch {
-      toast.show("Erro ao atualizar meta", "error");
-    }
-  };
-
-  const cycleStatus = async (g: Goal) => {
-    const order = ["pendente", "em_andamento", "concluida"] as const;
-    const next = order[(order.indexOf(g.status) + 1) % order.length];
-    try {
-      await api.updateGoal(g.id, { status: next });
-      load();
-    } catch {
-      toast.show("Erro ao atualizar meta", "error");
-    }
-  };
+  const { toggleComplete, cycleStatus } = useGoalActions({
+    reload: load,
+    completedMessage: "Meta concluída! Continue avançando.",
+  });
 
   const progress = stats && stats.total_today > 0 ? stats.completed_today / stats.total_today : 0;
   const phrase = profile?.motivational_phrases_enabled !== false ? getDailyPhrase() : "";

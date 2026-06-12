@@ -1,10 +1,11 @@
 import { Platform } from "react-native";
 import * as Notifications from "expo-notifications";
+import { STORAGE_KEYS } from "@/src/constants/storage";
 import { storage } from "@/src/utils/storage";
 import { api, Goal, recurrenceMatchesDate } from "@/src/api/client";
 import { addLocalDays, formatLocalISODate, parseLocalISODate, todayLocalISO } from "@/src/utils/date";
 
-const STORAGE_KEY = "rf_goal_notif_ids";
+const STORAGE_KEY = STORAGE_KEYS.goalNotificationIds;
 const RECURRENCE_ID_SEPARATOR = "::";
 const NOTIFICATION_LOOKAHEAD_DAYS = 366;
 // How many upcoming occurrences to schedule at once for a recurring goal.
@@ -190,12 +191,15 @@ export async function scheduleGoalNotification(goal: Goal): Promise<string[] | n
 }
 
 export async function cancelGoalNotification(goalId: string): Promise<void> {
-  if (Platform.OS === "web") return;
   const map = await getMap();
   const key = notificationKey(goalId);
   const ids = [...(map[key] ?? []), ...(map[goalId] ?? [])];
-  if (ids.length > 0) {
+
+  if (Platform.OS !== "web" && ids.length > 0) {
     await cancelIds(ids);
+  }
+
+  if (ids.length > 0 || map[key] || map[goalId]) {
     delete map[key];
     delete map[goalId];
     await setMap(map);
@@ -225,11 +229,12 @@ export async function resyncRecurringNotifications(): Promise<void> {
 }
 
 export async function cancelAllGoalNotifications(): Promise<void> {
-  if (Platform.OS === "web") return;
-  try {
-    await Notifications.cancelAllScheduledNotificationsAsync();
-  } catch {
-    // ignore
+  if (Platform.OS !== "web") {
+    try {
+      await Notifications.cancelAllScheduledNotificationsAsync();
+    } catch {
+      // ignore
+    }
   }
   await setMap({});
 }

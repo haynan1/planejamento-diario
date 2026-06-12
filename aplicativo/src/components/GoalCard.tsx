@@ -137,7 +137,11 @@ export default function GoalCard({
       onSwipeableWillOpen={(direction) => {
         swipeRef.current?.close();
         if (direction === "left" && onToggleComplete) {
-          completed ? haptics.tap() : haptics.success();
+          if (completed) {
+            haptics.tap();
+          } else {
+            haptics.success();
+          }
           onToggleComplete(goal);
         } else if (direction === "right" && onDelete) {
           haptics.warning();
@@ -156,7 +160,11 @@ export default function GoalCard({
       <Animated.View style={{ transform: [{ scale: checkScale }] }}>
       <TouchableOpacity
         onPress={() => {
-          completed ? haptics.tap() : haptics.success();
+          if (completed) {
+            haptics.tap();
+          } else {
+            haptics.success();
+          }
           onToggleComplete?.(goal);
         }}
         style={[
