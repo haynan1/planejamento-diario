@@ -10,7 +10,7 @@
     "web": "expo start --web",
     "setup": "bash ./instalar-dependencias.sh",
     "rodar:web": "bash ./rodar-web.sh",
-    "gerar:apk": "bash ./gerar-apk.sh",
+    "gerar:apk": "npx eas-cli@latest build -p android --profile preview",
     "test": "jest",
     "build:android:apk": "npx eas-cli@latest build -p android --profile preview",
     "build:android:aab": "npx eas-cli@latest build -p android --profile production",
